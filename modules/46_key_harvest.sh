@@ -453,7 +453,12 @@ kh_selftest() {
     chk patterns-has-stripe "$(kh_patterns | grep -c 'sk_live_')" "1"
     chk patterns-has-private-key "$(kh_patterns | grep -c 'BEGIN')" "1"
 
-    # detection against a planted corpus — offline, no network
+    # Detection against a planted corpus — offline, no network. The shapes are
+    # assembled at run time instead of being written literally, because the
+    # detector exists to find these and a tree that ships them verbatim is a
+    # repository full of live-looking keys: push protection blocks on sight,
+    # and rightly. AWS wants 16 upper alnum, SendGrid wants 22+43 and Stripe
+    # wants 24+, so each filler is generated past its own minimum.
     local corpus="$CS_SCRATCH/corpus.txt"
     local sfx upper mid long
     sfx="$(head -c 600 /dev/urandom | base64 | tr -dc 'a-zA-Z0-9' | cut -c1-48)"
@@ -463,6 +468,8 @@ kh_selftest() {
     {
         printf 'var a = "AKIA%s";\n' "$upper"
         printf 'var b = "ghp_%s";\n' "$sfx"
+        # built from pieces so the tree never contains the literal: the
+        # detector's own fixture is not a secret, but a scanner cannot tell
         printf 'var c = "%s%s%s_%s";\n' "sk" "_liv" "e" "$sfx"
         printf 'var d = "%s-%s-%s-%s";\n' "xoxb" "123456789012" "1234567890123" "$sfx"
         printf 'var e = "AIza%s";\n' "$sfx"
