@@ -96,3 +96,7 @@ module 78 --list
 # what the bytes mean, which is a different question with a different answer
 module 69 --techniques
 module 69 --wire
+
+# 42 reads one spec and asks how bad it is; 70 reads two and asks what moved —
+# the interesting answer is never "an endpoint was added"
+module 70 --classes

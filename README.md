@@ -430,6 +430,7 @@ standalone, carries its own `--selftest`, and writes TSV.
 | `67_token_refresh` | The token that outlives the logout — rotation, replay and revocation, measured | 51 checks |
 | `78_replay_nonce` | The request that still works the second time — check-then-act and the missing nonce store | 37 checks |
 | `69_bfuzz` | The value the schema forbids — what the protobuf decoder accepts, the handler believes | 45 checks |
+| `70_spec_diff` | What changed between two specs, and which change added a door nobody locked | 44 checks |
 
 ### Verb reference
 
@@ -519,6 +520,8 @@ Each module's own `--help` is the authority; this is the map.
                     --replay --selftest --status-tsv --timestamp --vectors
 69_bfuzz            --any --detect --fuzz --help --list --menu --packed --probe
                     --selftest --status-tsv --techniques --truncate --varint --wire
+70_spec_diff        --auth --classes --deprecated --diff --help --list --menu --new
+                    --params --selftest --snapshot --status-tsv
 60_resp_smuggle     --cache --headers --help --leak --list --menu --params
                     --probe --reflect --selftest --split --status-tsv --vectors
 58_sse              --auth --cors --events --help --inject --list --menu --paths

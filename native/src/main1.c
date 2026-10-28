@@ -236,6 +236,9 @@ static const ModuleDefinition module_fallback[] = {
     { "69_bfuzz", "Binary Fuzz", "WEBAPI",
       "applications-engineering-symbolic",
       "The value the schema forbids" },
+    { "70_spec_diff", "Spec Diff", "WEBAPI",
+      "document-open-recent-symbolic",
+      "What changed, and which change added a door" },
     { "66_webhook_sig", "Webhook Signature", "WEBAPI",
       "mail-signed-symbolic",
       "The signature nobody checked" },
@@ -2658,6 +2661,25 @@ static const PageSpec bfuzz_pages[] = {
       "|--techniques:Every mutation|--wire:Wire types|--help:Usage", "69_bfuzz.sh" },
 };
 
+/* 70_spec_diff */
+static const PageSpec specdiff_pages[] = {
+    { "Overview", "dialog-information-symbolic", "70_spec_diff.sh" },
+    { "Compare", "document-open-recent-symbolic",
+      "#WHAT MOVED BETWEEN TWO SPECS"
+      "|~~--diff:Every change, graded against its siblings"
+      "|~~--auth:Only the security column"
+      "|~~--new:Only endpoints that did not exist", "70_spec_diff.sh" },
+    { "Surface", "view-list-symbolic",
+      "#THE REST OF THE DIFF"
+      "|~~--params:Only the parameter surface"
+      "|~--deprecated:Deprecated endpoints and whether they are guarded", "70_spec_diff.sh" },
+    { "Baseline", "document-save-symbolic",
+      "#FREEZE A VERSION"
+      "|~~--snapshot:Save a spec as tomorrow's baseline", "70_spec_diff.sh" },
+    { "Reference", "help-about-symbolic",
+      "|--classes:Every class of change|--help:Usage", "70_spec_diff.sh" },
+};
+
 /* 44_jwt */
 static const PageSpec jwt_pages[] = {
     { "Overview", "dialog-information-symbolic", "44_jwt.sh" },
@@ -3049,6 +3071,9 @@ static const ModuleSpec module_specs[] = {
     { "69_bfuzz", S("69_bfuzz.sh"),
       "Binary Fuzz", "The value the schema forbids — what the decoder accepts, the handler believes.",
       bfuzz_pages, G_N_ELEMENTS(bfuzz_pages) },
+    { "70_spec_diff", S("70_spec_diff.sh"),
+      "Spec Diff", "What changed between two specs, and which change added a door nobody locked.",
+      specdiff_pages, G_N_ELEMENTS(specdiff_pages) },
     { "66_webhook_sig", S("66_webhook_sig.sh"),
       "Webhook Signature", "A signature nobody checked — control first, then every receiver mistake.",
       websig_pages, G_N_ELEMENTS(websig_pages) },
