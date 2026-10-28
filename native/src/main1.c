@@ -73,7 +73,7 @@ cs_path(const char *relative)
 }
 
 /* Per-module script paths, resolved at use time. */
-#define SCRIPT(n)  cs_path("modules/" n)
+#define SCRIPT(n)  "modules/" n
 #define PROJECT_DIR cs_root()
 
 /* ==================================================================== */
@@ -139,6 +139,23 @@ static const ModuleDefinition modules[] = {
     { "12_lambda_dump",   "Lambda Dump",     "DATA",
       "system-run-symbolic",
       "Enumerate and extract Lambda function code + env" },
+
+    /* ---- SERVERLESS / CONTAINER ---- */
+    { "13_serverless_recon", "Serverless Recon", "RECON",
+      "view-list-symbolic",
+      "Enumerate cloud functions across AWS, GCP and Azure" },
+    { "14_registry_recon",   "Registry Recon",   "RECON",
+      "package-x-generic-symbolic",
+      "List container registries, images and tags" },
+    { "15_container_escape", "Container Escape", "EXPLOIT",
+      "security-high-symbolic",
+      "Detect misconfigurations that allow container escape" },
+    { "16_k8s_attack_surface", "K8s Surface",    "EXPLOIT",
+      "network-workgroup-symbolic",
+      "Map EKS/GKE/AKS clusters, nodes, pods and RBAC" },
+    { "17_k8s_secrets",      "K8s Secrets",      "EXPLOIT",
+      "dialog-password-symbolic",
+      "Extract and decode Kubernetes secrets and SA tokens" },
 };
 
 /* ==================================================================== */
@@ -229,6 +246,18 @@ static GtkWidget *find_module_page(AppState *state, const char *id);
 static void open_module(AppState *state, const ModuleDefinition *mod);
 static void window_state_save(AppState *state);
 static void dashboard_populate(AppState *state);
+/* Forward declarations for callbacks defined after first use in static init or G_CALLBACK */
+static void close_tab_clicked(GtkButton *, gpointer);
+static void tile_fav_clicked(GtkButton *, gpointer);
+static void jump_clicked(GtkButton *, gpointer);
+static void session_copy_clicked(GtkButton *, gpointer);
+static void session_refresh_clicked(GtkButton *, gpointer);
+static gboolean session_refresh_idle(gpointer);
+static void open_terminal_clicked(GtkButton *, gpointer);
+static void toggle_widget(GtkToggleButton *, gpointer);
+static void open_module_clicked(GtkButton *, gpointer);
+static GtkWidget *create_loot_page(AppState *);
+static GtkWidget *create_help_page(AppState *);
 
 /* ==================================================================== */
 /*  Paths                                                                */
@@ -1256,6 +1285,53 @@ static const VerbDef lambda_verbs[] = {
     { "List URLs",             "--urls",            NULL,                FALSE, TRUE },
 };
 
+/* ---- 13_serverless_recon ---- */
+static const VerbDef serverless_verbs[] = {
+    { "List functions",        "--list",             NULL,               FALSE, TRUE },
+    { "Print env vars",        "--env",              "function-name",    FALSE, TRUE },
+    { "List function URLs",    "--urls",             NULL,               FALSE, TRUE },
+    { "Invoke a function",     "--invoke",           "provider function", FALSE, TRUE },
+    { "Full sweep",            "--all",              NULL,               FALSE, TRUE },
+};
+
+/* ---- 14_registry_recon ---- */
+static const VerbDef registry_verbs[] = {
+    { "List registries",       "--scan",             NULL,               FALSE, TRUE },
+    { "List repositories",     "--list",             "registry",         FALSE, TRUE },
+    { "List tags",             "--tags",             "repo",             FALSE, TRUE },
+    { "Pull an image",         "--pull",             "repo:tag",         FALSE, TRUE },
+    { "Docker Hub OSINT",      "--dhl",              "namespace",        FALSE, TRUE },
+};
+
+/* ---- 15_container_escape ---- */
+static const VerbDef escape_verbs[] = {
+    { "Full escape scan",      "--all",              NULL,               FALSE, TRUE },
+    { "Capabilities",          "--cap",              NULL,               FALSE, TRUE },
+    { "Mount points",          "--mounts",           NULL,               FALSE, TRUE },
+    { "Proc / namespaces",     "--proc",             NULL,               FALSE, TRUE },
+    { "Cgroup escape",         "--cgroup",           NULL,               FALSE, TRUE },
+    { "Host / docker socket",  "--host",             NULL,               FALSE, TRUE },
+};
+
+/* ---- 16_k8s_attack_surface ---- */
+static const VerbDef k8ssurf_verbs[] = {
+    { "List clusters",         "--clusters",         NULL,               FALSE, TRUE },
+    { "List nodes",            "--nodes",            NULL,               FALSE, TRUE },
+    { "List pods",             "--pods",             NULL,               FALSE, TRUE },
+    { "RBAC self-audit",       "--rbac",             NULL,               FALSE, TRUE },
+    { "List secrets",          "--secrets",          NULL,               FALSE, TRUE },
+    { "Full sweep",            "--all",              NULL,               FALSE, TRUE },
+};
+
+/* ---- 17_k8s_secrets ---- */
+static const VerbDef k8ssec_verbs[] = {
+    { "Extract secrets",       "--extract",          "namespace",        FALSE, TRUE },
+    { "Decode a secret",       "--decode",           "namespace secret", FALSE, TRUE },
+    { "Service-account tokens", "--sa-tokens",       NULL,               FALSE, TRUE },
+    { "RBAC abuse paths",      "--rbac-abuse",       NULL,               FALSE, TRUE },
+    { "Full sweep",            "--all",              NULL,               FALSE, TRUE },
+};
+
 /* ---- Master spec table ---- */
 static const ModuleSpec module_specs[] = {
     { "00_deps",          S("00_deps.sh"),
@@ -1297,6 +1373,21 @@ static const ModuleSpec module_specs[] = {
     { "12_lambda_dump",   S("12_lambda_dump.sh"),
       "Lambda Dump",      "Enumerate and extract Lambda code + env.",
       lambda_verbs,       G_N_ELEMENTS(lambda_verbs) },
+    { "13_serverless_recon", S("13_serverless_recon.sh"),
+      "Serverless Recon", "Enumerate cloud functions and their URLs.",
+      serverless_verbs,   G_N_ELEMENTS(serverless_verbs) },
+    { "14_registry_recon", S("14_registry_recon.sh"),
+      "Registry Recon",   "List container registries, images and tags.",
+      registry_verbs,     G_N_ELEMENTS(registry_verbs) },
+    { "15_container_escape", S("15_container_escape.sh"),
+      "Container Escape", "Detect misconfigurations that allow escape.",
+      escape_verbs,       G_N_ELEMENTS(escape_verbs) },
+    { "16_k8s_attack_surface", S("16_k8s_attack_surface.sh"),
+      "K8s Surface",      "Map clusters, nodes, pods and RBAC.",
+      k8ssurf_verbs,      G_N_ELEMENTS(k8ssurf_verbs) },
+    { "17_k8s_secrets", S("17_k8s_secrets.sh"),
+      "K8s Secrets",      "Extract and decode Kubernetes secrets.",
+      k8ssec_verbs,       G_N_ELEMENTS(k8ssec_verbs) },
 };
 
 static const ModuleSpec *
@@ -1315,6 +1406,13 @@ module_spec_for(const char *id)
 static GtkWidget *generic_build_overview(AppState *, gpointer);
 static GtkWidget *generic_build_actions(AppState *, gpointer);
 static GtkWidget *generic_build_output(AppState *, gpointer);
+
+/* Submenu entry for module navigation panes. */
+typedef struct {
+    const char *name;
+    const char *icon;
+    GtkWidget *(*build_page)(AppState *, gpointer);
+} ModuleSubmenuEntry;
 
 static ModuleSubmenuEntry *
 build_entries_for(const ModuleSpec *spec, int *out_count)
@@ -1359,6 +1457,11 @@ static gpointer _new_ssrf(AppState *s)     { return generic_module_data_new(s, m
 static gpointer _new_imds2(AppState *s)    { return generic_module_data_new(s, module_spec_for("10_imdsv2_bypass")); }
 static gpointer _new_userdata(AppState *s) { return generic_module_data_new(s, module_spec_for("11_user_data")); }
 static gpointer _new_lambda(AppState *s)   { return generic_module_data_new(s, module_spec_for("12_lambda_dump")); }
+static gpointer _new_serverless(AppState *s) { return generic_module_data_new(s, module_spec_for("13_serverless_recon")); }
+static gpointer _new_registry(AppState *s)   { return generic_module_data_new(s, module_spec_for("14_registry_recon")); }
+static gpointer _new_escape(AppState *s)     { return generic_module_data_new(s, module_spec_for("15_container_escape")); }
+static gpointer _new_k8ssurf(AppState *s)    { return generic_module_data_new(s, module_spec_for("16_k8s_attack_surface")); }
+static gpointer _new_k8ssec(AppState *s)     { return generic_module_data_new(s, module_spec_for("17_k8s_secrets")); }
 
 /* ==================================================================== */
 /*  Module registry                                                      */
@@ -1430,6 +1533,16 @@ register_all_modules(void)
             module_registry_register(spec->id, e, n, _new_userdata);
         else if (g_strcmp0(spec->id, "12_lambda_dump") == 0)
             module_registry_register(spec->id, e, n, _new_lambda);
+        else if (g_strcmp0(spec->id, "13_serverless_recon") == 0)
+            module_registry_register(spec->id, e, n, _new_serverless);
+        else if (g_strcmp0(spec->id, "14_registry_recon") == 0)
+            module_registry_register(spec->id, e, n, _new_registry);
+        else if (g_strcmp0(spec->id, "15_container_escape") == 0)
+            module_registry_register(spec->id, e, n, _new_escape);
+        else if (g_strcmp0(spec->id, "16_k8s_attack_surface") == 0)
+            module_registry_register(spec->id, e, n, _new_k8ssurf);
+        else if (g_strcmp0(spec->id, "17_k8s_secrets") == 0)
+            module_registry_register(spec->id, e, n, _new_k8ssec);
     }
 }
 
@@ -1548,10 +1661,10 @@ create_module_page(AppState *state, const ModuleDefinition *module,
         g_object_set_data_full(G_OBJECT(row), "name",
                                g_strdup(entries[i].name), g_free);
         g_object_set_data(G_OBJECT(row), "index", GINT_TO_POINTER(i));
-        g_signal_connect(submenu, "row-activated",
-                         G_CALLBACK(module_page_submenu_activated), state);
         gtk_list_box_append(GTK_LIST_BOX(submenu), row);
     }
+    g_signal_connect(submenu, "row-activated",
+                     G_CALLBACK(module_page_submenu_activated), state);
 
     if (n_entries > 0) {
         gtk_stack_set_visible_child_name(GTK_STACK(stack), entries[0].name);
@@ -1682,13 +1795,23 @@ create_dashboard(AppState *state)
     gtk_label_set_xalign(GTK_LABEL(subtitle), 0.0f);
     gtk_label_set_wrap(GTK_LABEL(subtitle), TRUE);
 
-    gtk_grid_set_column_spacing(GTK_GRID(grid), 9);
-    gtk_grid_set_row_spacing(GTK_GRID(grid), 9);
+    gtk_grid_set_column_spacing(GTK_GRID(grid), 10);
+    gtk_grid_set_row_spacing(GTK_GRID(grid), 10);
+    gtk_grid_set_column_homogeneous(GTK_GRID(grid), TRUE);
+    gtk_grid_set_row_homogeneous(GTK_GRID(grid), FALSE);
     gtk_widget_set_margin_top(grid, 10);
     gtk_widget_set_margin_start(grid, 4);
+    gtk_widget_set_margin_end(grid, 4);
+    gtk_widget_set_margin_bottom(grid, 10);
+    gtk_widget_set_hexpand(grid, TRUE);
+    gtk_widget_set_halign(grid, GTK_ALIGN_FILL);
+    gtk_widget_set_valign(grid, GTK_ALIGN_START);
 
     gtk_scrolled_window_set_child(GTK_SCROLLED_WINDOW(scroll), grid);
+    gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(scroll),
+        GTK_POLICY_NEVER, GTK_POLICY_AUTOMATIC);
     gtk_widget_set_vexpand(scroll, TRUE);
+    gtk_widget_set_hexpand(scroll, TRUE);
 
     gtk_box_append(GTK_BOX(header), title);
     gtk_box_append(GTK_BOX(header), subtitle);
@@ -1711,7 +1834,7 @@ create_dashboard(AppState *state)
         gtk_widget_add_css_class(star, "module-card-star");
         gtk_widget_add_css_class(icon, "module-card-icon");
         gtk_widget_add_css_class(name, "module-card-title");
-        gtk_image_set_pixel_size(GTK_IMAGE(icon), 56);
+        gtk_image_set_pixel_size(GTK_IMAGE(icon), 48);
         gtk_widget_set_halign(icon, GTK_ALIGN_CENTER);
         gtk_widget_set_valign(icon, GTK_ALIGN_CENTER);
         gtk_label_set_xalign(GTK_LABEL(cat), 0.0f);
@@ -1719,16 +1842,22 @@ create_dashboard(AppState *state)
         gtk_widget_set_halign(cat, GTK_ALIGN_START);
         gtk_widget_set_halign(star, GTK_ALIGN_END);
         gtk_widget_set_hexpand(cat, TRUE);
-        gtk_label_set_ellipsize(GTK_LABEL(name), PANGO_ELLIPSIZE_END);
-        gtk_label_set_max_width_chars(GTK_LABEL(name), 12);
+        gtk_label_set_wrap(GTK_LABEL(name), TRUE);
+        gtk_label_set_wrap_mode(GTK_LABEL(name), PANGO_WRAP_WORD_CHAR);
+        gtk_label_set_lines(GTK_LABEL(name), 2);
+        gtk_label_set_justify(GTK_LABEL(name), GTK_JUSTIFY_CENTER);
+        gtk_label_set_max_width_chars(GTK_LABEL(name), 14);
         gtk_label_set_xalign(GTK_LABEL(name), 0.5f);
         gtk_widget_set_halign(name, GTK_ALIGN_CENTER);
-        gtk_widget_set_size_request(button, 170, 120);
-        gtk_widget_set_hexpand(button, FALSE);
-        gtk_widget_set_halign(button, GTK_ALIGN_START);
-        gtk_widget_set_valign(button, GTK_ALIGN_START);
+        gtk_widget_set_valign(name, GTK_ALIGN_START);
+        gtk_widget_set_hexpand(button, TRUE);
+        gtk_widget_set_vexpand(button, TRUE);
+        gtk_widget_set_halign(button, GTK_ALIGN_FILL);
+        gtk_widget_set_valign(button, GTK_ALIGN_FILL);
         if (mod->description) gtk_widget_set_tooltip_text(button, mod->description);
 
+        gtk_widget_set_hexpand(inner, TRUE);
+        gtk_widget_set_vexpand(inner, TRUE);
         gtk_box_append(GTK_BOX(top_row), cat);
         gtk_box_append(GTK_BOX(top_row), star);
         gtk_box_append(GTK_BOX(inner), top_row);
@@ -1738,8 +1867,8 @@ create_dashboard(AppState *state)
 
         g_object_set_data(G_OBJECT(button), "module", (gpointer) mod);
         g_object_set_data(G_OBJECT(button), "module-id", (gpointer) mod->id);
-        g_signal_connect_swapped(button, "clicked",
-                                 G_CALLBACK(open_module), state);
+        g_signal_connect(button, "clicked",
+                           G_CALLBACK(open_module_clicked), state);
 
         {
             GtkGesture *g = gtk_gesture_click_new();
@@ -1787,7 +1916,7 @@ tile_right_click(GtkGestureClick *g, int np, double x, double y, gpointer ud)
     g_object_set_data(G_OBJECT(btn_fav), "module-id", (gpointer) id);
 
     g_signal_connect(btn_open, "clicked",
-                     G_CALLBACK(open_module), state);
+                     G_CALLBACK(open_module_clicked), state);
     g_object_set_data(G_OBJECT(btn_fav), "action", "toggle-fav");
     g_signal_connect(btn_fav, "clicked",
                      G_CALLBACK(tile_fav_clicked), state);
@@ -1911,8 +2040,8 @@ create_sidebar(AppState *state)
 
                 g_object_set_data(G_OBJECT(b), "module", (gpointer) &modules[k]);
                 g_object_set_data(G_OBJECT(b), "row-label", label);
-                g_signal_connect_swapped(b, "clicked",
-                                         G_CALLBACK(open_module), state);
+                g_signal_connect(b, "clicked",
+                                   G_CALLBACK(open_module_clicked), state);
                 gtk_box_append(GTK_BOX(box), b);
             }
         }
@@ -2009,10 +2138,13 @@ create_session_panel(AppState *state)
         gtk_box_append(GTK_BOX(pop), vals[i]);
     }
 
-    /* Footer: quick-jump buttons */
-    GtkWidget *foot = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 4);
-    gtk_widget_set_margin_top(foot, 8);
-    gtk_widget_set_halign(foot, GTK_ALIGN_START);
+    /* Footer: quick-jump buttons (two rows so long labels never clip) */
+    GtkWidget *foot = gtk_box_new(GTK_ORIENTATION_VERTICAL, 4);
+    GtkWidget *foot_row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 4);
+    gtk_widget_set_margin_top(foot, 10);
+    gtk_widget_set_halign(foot, GTK_ALIGN_FILL);
+    gtk_widget_set_halign(foot_row, GTK_ALIGN_START);
+    gtk_box_append(GTK_BOX(foot), foot_row);
     static const struct { const char *label; const char *id; } q[] = {
         { "Validate", "01_cred_validate" },
         { "Inventory", "02_inventory" },
@@ -2022,8 +2154,15 @@ create_session_panel(AppState *state)
         GtkWidget *b = gtk_button_new_with_label(q[qi].label);
         gtk_widget_add_css_class(b, "flat");
         g_object_set_data(G_OBJECT(b), "jump-id", (gpointer) q[qi].id);
+        gtk_widget_add_css_class(b, "session-jump");
         g_signal_connect(b, "clicked", G_CALLBACK(jump_clicked), state);
-        gtk_box_append(GTK_BOX(foot), b);
+        if (qi == 2) {
+            GtkWidget *row2 = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 4);
+            gtk_widget_set_halign(row2, GTK_ALIGN_START);
+            gtk_box_append(GTK_BOX(foot), row2);
+            foot_row = row2;
+        }
+        gtk_box_append(GTK_BOX(foot_row), b);
     }
     gtk_box_append(GTK_BOX(pop), foot);
 
@@ -2043,7 +2182,7 @@ create_session_panel(AppState *state)
     gtk_box_append(GTK_BOX(panel), title);
     gtk_box_append(GTK_BOX(panel), stack);
 
-    gtk_widget_set_size_request(panel, 150, -1);
+    gtk_widget_set_size_request(panel, 236, -1);
 
     state->session_stack = stack;
     g_signal_connect_swapped(copy, "clicked",
@@ -2300,10 +2439,6 @@ create_header(AppState *state)
     gtk_label_set_ellipsize(GTK_LABEL(title), PANGO_ELLIPSIZE_END);
     gtk_widget_set_tooltip_text(terminal, "Raw Terminal (Ctrl+T)");
 
-    gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(sidebar_toggle), TRUE);
-    gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(session_toggle), TRUE);
-    gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(events_toggle), TRUE);
-
     g_signal_connect(terminal, "clicked", G_CALLBACK(open_terminal_clicked), state);
     g_signal_connect(sidebar_toggle, "toggled",
                      G_CALLBACK(toggle_widget), state->sidebar);
@@ -2311,6 +2446,13 @@ create_header(AppState *state)
                      G_CALLBACK(toggle_widget), state->session_revealer);
     g_signal_connect(events_toggle, "toggled",
                      G_CALLBACK(toggle_widget), state->event_drawer);
+
+    /* Activate AFTER connecting so the target widgets are forced into the
+       exact state the button reports. Setting the state before connecting
+       leaves the revealer out of sync until the user clicks once. */
+    gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(sidebar_toggle), TRUE);
+    gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(session_toggle), TRUE);
+    gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(events_toggle), TRUE);
 
     iface_item = create_status_item("PROVIDER", "—", &state->hdr_account_value);
     region_item = create_status_item("REGION", "—", &state->hdr_region_value);
@@ -2331,8 +2473,26 @@ create_header(AppState *state)
 static void
 toggle_widget(GtkToggleButton *b, gpointer ud)
 {
-    gtk_widget_set_visible(GTK_WIDGET(ud),
-                           gtk_toggle_button_get_active(b));
+    GtkWidget *target = ud;
+    if (g_getenv("CLOUDSTING_DEBUG_LAYOUT") != NULL)
+        g_printerr("DBG toggle %p active=%d target=%p reveal=%d\n", (void*)b,
+            gtk_toggle_button_get_active(b), (void*)target,
+            GTK_IS_REVEALER(target) ? gtk_revealer_get_reveal_child(GTK_REVEALER(target)) : -1);
+    if (target == NULL) return;
+    /* Handle GtkRevealer specially for animated hide/show */
+    if (GTK_IS_REVEALER(target))
+        gtk_revealer_set_reveal_child(GTK_REVEALER(target),
+                                      gtk_toggle_button_get_active(b));
+    else
+        gtk_widget_set_visible(target, gtk_toggle_button_get_active(b));
+}
+
+static void
+open_module_clicked(GtkButton *button, gpointer user_data)
+{
+    AppState *state = user_data;
+    const ModuleDefinition *module = g_object_get_data(G_OBJECT(button), "module");
+    if (module != NULL) open_module(state, module);
 }
 
 /* ==================================================================== */
@@ -2628,6 +2788,21 @@ activate(GtkApplication *app, gpointer user_data)
     state->sidebar = create_sidebar(state);
     state->event_drawer = create_event_drawer(state);
 
+    /* Session panel revealer */
+    GtkWidget *panel = create_session_panel(state);
+    GtkWidget *rev = gtk_revealer_new();
+    gtk_revealer_set_transition_type(GTK_REVEALER(rev),
+        GTK_REVEALER_TRANSITION_TYPE_SLIDE_LEFT);
+    gtk_revealer_set_transition_duration(GTK_REVEALER(rev), 220);
+    gtk_revealer_set_reveal_child(GTK_REVEALER(rev), TRUE);
+    gtk_revealer_set_child(GTK_REVEALER(rev), panel);
+    gtk_widget_add_css_class(rev, "session-revealer");
+    gtk_widget_set_halign(rev, GTK_ALIGN_END);
+    gtk_widget_set_valign(rev, GTK_ALIGN_FILL);
+    state->session_revealer = rev;
+    state->session_shown = TRUE;
+
+
     load_css();
 
     /* Permenant tabs: Dashboard, Loot, Help */
@@ -2650,8 +2825,17 @@ activate(GtkApplication *app, gpointer user_data)
     gtk_widget_set_vexpand(vertical, TRUE);
 
     gtk_paned_set_start_child(GTK_PANED(horizontal), state->sidebar);
-    gtk_paned_set_end_child(GTK_PANED(horizontal), state->notebook);
-    gtk_paned_set_position(GTK_PANED(horizontal), 185);
+    {
+        GtkWidget *right = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
+        gtk_widget_set_hexpand(right, TRUE);
+        gtk_widget_set_vexpand(right, TRUE);
+        gtk_widget_set_hexpand(state->notebook, TRUE);
+        gtk_widget_set_vexpand(state->notebook, TRUE);
+        gtk_box_append(GTK_BOX(right), state->notebook);
+        gtk_box_append(GTK_BOX(right), state->session_revealer);
+        gtk_paned_set_end_child(GTK_PANED(horizontal), right);
+    }
+    gtk_paned_set_position(GTK_PANED(horizontal), 218);
     gtk_paned_set_resize_start_child(GTK_PANED(horizontal), FALSE);
     gtk_paned_set_resize_end_child(GTK_PANED(horizontal), TRUE);
 
@@ -2663,6 +2847,9 @@ activate(GtkApplication *app, gpointer user_data)
 
     gtk_window_set_title(GTK_WINDOW(state->window), "cloudsting");
     gtk_window_set_default_size(GTK_WINDOW(state->window), 1280, 760);
+
+
+
     gtk_window_set_titlebar(GTK_WINDOW(state->window), create_header(state));
 
     /* Overlay: background + main + session panel + toasts */
@@ -2673,23 +2860,8 @@ activate(GtkApplication *app, gpointer user_data)
         gtk_widget_set_hexpand(bg, TRUE);
         gtk_widget_set_vexpand(bg, TRUE);
 
-        /* Session panel revealer */
-        GtkWidget *panel = create_session_panel(state);
-        GtkWidget *rev = gtk_revealer_new();
-        gtk_revealer_set_transition_type(GTK_REVEALER(rev),
-            GTK_REVEALER_TRANSITION_TYPE_SLIDE_LEFT);
-        gtk_revealer_set_transition_duration(GTK_REVEALER(rev), 220);
-        gtk_revealer_set_reveal_child(GTK_REVEALER(rev), TRUE);
-        gtk_revealer_set_child(GTK_REVEALER(rev), panel);
-        gtk_widget_add_css_class(rev, "session-revealer");
-        gtk_widget_set_halign(rev, GTK_ALIGN_END);
-        gtk_widget_set_valign(rev, GTK_ALIGN_FILL);
-        state->session_revealer = rev;
-        state->session_shown = TRUE;
-
         gtk_overlay_set_child(GTK_OVERLAY(overlay), bg);
         gtk_overlay_add_overlay(GTK_OVERLAY(overlay), vertical);
-        gtk_overlay_add_overlay(GTK_OVERLAY(overlay), rev);
         gtk_overlay_set_measure_overlay(GTK_OVERLAY(overlay), vertical, TRUE);
 
         /* Toast stack */
@@ -2743,6 +2915,11 @@ activate(GtkApplication *app, gpointer user_data)
     show_splash(state);
 
     /* Silent session info refresh every 30 s — never prompts */
+    if (g_getenv("CLOUDSTING_DEBUG_LAYOUT") != NULL)
+        g_printerr("DBG reveal_child=%d rev_mapped=%d rev_w=%d\n",
+            gtk_revealer_get_reveal_child(GTK_REVEALER(state->session_revealer)),
+            gtk_widget_get_mapped(state->session_revealer),
+            gtk_widget_get_width(state->session_revealer));
     session_refresh_idle(state);
     g_timeout_add_seconds(30, session_refresh_idle, state);
 }

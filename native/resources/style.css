@@ -10,7 +10,7 @@
 window {
     background-color: #0a0e14;
     color: #e0e8f0;
-    font-family: "JetBrains Mono", "DejaVu Sans Mono", monospace;
+    font-family: "Neuropol", "JetBrains Mono", "DejaVu Sans Mono", monospace;
 }
 
 /* ---------- headerbar ---------- */
@@ -26,7 +26,7 @@ headerbar {
 
 .header-title {
     color: #ffffff;
-    font-size: 15px;
+    font-size: 17px;
     font-weight: bold;
     letter-spacing: 1.5px;
 }
@@ -87,12 +87,12 @@ button.flat {
 .toolbar-item { margin: 0 5px; }
 .toolbar-value {
     color: #00e5ff;
-    font-size: 11px;
+    font-size: 13px;
     font-weight: bold;
 }
 .toolbar-caption {
     color: #6a7c8a;
-    font-size: 9px;
+    font-size: 11px;
     letter-spacing: 0.8px;
 }
 
@@ -105,7 +105,7 @@ button.flat {
 
 .sidebar-title {
     color: #00e5ff;
-    font-size: 13px;
+    font-size: 15px;
     font-weight: bold;
     letter-spacing: 1.4px;
     padding: 8px 9px 3px;
@@ -113,7 +113,7 @@ button.flat {
 
 .sidebar-section {
     color: #6a7c8a;
-    font-size: 9px;
+    font-size: 11px;
     font-weight: bold;
     letter-spacing: 1.4px;
     padding: 10px 9px 2px;
@@ -121,13 +121,13 @@ button.flat {
 }
 
 .sidebar button {
-    min-height: 28px;
-    margin: 2px 6px;
-    padding: 4px 8px;
+    min-height: 32px;
+    margin: 3px 6px;
+    padding: 5px 10px;
     background: transparent;
     border: 1px solid rgba(0, 229, 255, 0.12);
     border-radius: 6px;
-    font-size: 12px;
+    font-size: 14px;
 }
 
 .sidebar button:hover {
@@ -152,20 +152,20 @@ button.flat {
 
 .page-title {
     color: #ffffff;
-    font-size: 19px;
+    font-size: 22px;
     font-weight: bold;
     letter-spacing: 0.6px;
 }
 
 .page-subtitle {
     color: #7c8b9a;
-    font-size: 11px;
+    font-size: 13px;
 }
 
 .module-card {
     min-width: 138px;
-    min-height: 78px;
-    padding: 10px;
+    min-height: 104px;
+    padding: 10px 8px 8px 8px;
     background: rgba(10, 16, 24, 0.80);
     border: 1px solid #1a2632;
     border-radius: 7px;
@@ -197,13 +197,13 @@ button.flat {
 
 .module-card-title {
     color: #f0f6fa;
-    font-size: 12px;
+    font-size: 14px;
     font-weight: bold;
 }
 
 .module-card-category {
     color: #00e5ff;
-    font-size: 9px;
+    font-size: 11px;
     font-weight: bold;
     letter-spacing: 1.2px;
 }
@@ -222,7 +222,8 @@ button.flat {
     color: #00e5ff;
     font-weight: bold;
     letter-spacing: 1.4px;
-    padding: 9px;
+    padding: 10px;
+    font-size: 14px;
 }
 
 .session-empty {
@@ -234,20 +235,20 @@ button.flat {
 .session-value {
     color: #00e5ff;
     font-family: "JetBrains Mono", "DejaVu Sans Mono", monospace;
-    font-size: 12px;
+    font-size: 14px;
     font-weight: bold;
 }
 
 .session-caption {
     color: #c8d6e2;
-    font-size: 10px;
+    font-size: 12px;
     font-weight: bold;
     letter-spacing: 0.6px;
 }
 
 .session-badge {
     color: #ffab00;
-    font-size: 10px;
+    font-size: 12px;
     font-weight: bold;
 }
 
@@ -262,7 +263,8 @@ button.flat {
     color: #00e5ff;
     font-weight: bold;
     letter-spacing: 1.4px;
-    padding: 6px 9px;
+    padding: 8px 12px;
+    font-size: 14px;
 }
 
 textview,
@@ -272,7 +274,7 @@ textview,
     padding: 10px 12px;
     border: 1px solid rgba(0, 229, 255, 0.14);
     border-radius: 7px;
-    font-size: 12px;
+    font-size: 14px;
     line-height: 1.5;
 }
 
@@ -308,8 +310,9 @@ notebook > header tabs tab {
     color: #8a9aa8;
     background: transparent;
     border: 0;
-    padding: 6px 12px;
-    min-width: 140px;
+    padding: 8px 16px;
+    min-width: 150px;
+    font-size: 14px;
     transition: color 130ms ease-out,
                 background-color 130ms ease-out,
                 box-shadow 130ms ease-out;
@@ -326,9 +329,18 @@ notebook > header tabs tab:checked {
     box-shadow: inset 0 -2px #00e5ff;
 }
 
-.tab-label { min-width: 100px; }
+.tab-label { min-width: 120px; font-size: 13px; }
 
-.tab-close { color: #6a7c8a; }
+.tab-close {
+    color: #6a7c8a;
+    min-width: 28px;
+    min-height: 28px;
+    font-size: 16px;
+    font-weight: bold;
+    padding: 4px;
+    border-radius: 5px;
+}
+
 .tab-close:hover {
     color: #ffffff;
     background: #008fa5;
@@ -354,7 +366,7 @@ notebook > header tabs tab:checked {
 
 .section-title {
     color: #00e5ff;
-    font-size: 11px;
+    font-size: 13px;
     font-weight: bold;
     text-transform: uppercase;
     letter-spacing: 1.2px;
@@ -393,13 +405,13 @@ spinbutton:focus {
 .module-header-icon { color: #00e5ff; }
 .module-header-title {
     color: #ffffff;
-    font-size: 15px;
+    font-size: 17px;
     font-weight: bold;
     letter-spacing: 0.6px;
 }
 .module-header-category {
     color: #00e5ff;
-    font-size: 9px;
+    font-size: 11px;
     font-weight: bold;
     letter-spacing: 1.2px;
     min-width: 80px;
@@ -408,9 +420,9 @@ spinbutton:focus {
 .status-pill {
     padding: 3px 10px;
     border-radius: 999px;
-    font-size: 9px;
+    font-size: 11px;
     font-weight: bold;
-    min-width: 60px;
+    min-width: 64px;
     letter-spacing: 0.8px;
 }
 
@@ -480,7 +492,7 @@ spinbutton:focus {
 
 .module-submenu-label {
     color: #a8b8c4;
-    font-size: 13px;
+    font-size: 15px;
 }
 
 .module-stack {
