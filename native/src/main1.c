@@ -832,10 +832,14 @@ command_action_finished(GObject *source, GAsyncResult *result, gpointer ud)
             }
         }
 
-        if (a->output_view != NULL && out != NULL) {
-            GtkTextBuffer *buf = gtk_text_view_get_buffer(
-                GTK_TEXT_VIEW(a->output_view));
-            gtk_text_buffer_set_text(buf, out, -1);
+        if (out != NULL && *out != '\0') {
+            g_autofree gchar *trimmed = g_strdup(out);
+            g_strchomp(trimmed);
+            if (*trimmed != '\0') {
+                g_autofree gchar *m = g_strdup_printf("%s output:\n%s",
+                                                      a->label, trimmed);
+                append_event(a->state, m);
+            }
         }
 
         if (ok) {
@@ -914,81 +918,559 @@ run_module_command(AppState *state, const char *module_id,
 }
 
 /* ==================================================================== */
-/*  Module framework — table-driven                                      */
+/*  Module framework — per-module pages                                  */
 /* ==================================================================== */
 
+/* One page of a module tab.  `spec` lists the buttons the page holds:
+ *
+ *     "#SECTION"          start a new card with this title
+ *     "--verb:Label"      a button that runs `script --verb`
+ *     "~--verb:Label"     the verb needs a value; the row gets an entry
+ *     "~~--verb:Label"    the value is split on spaces (two positionals)
+ *     "--verb:Label!"     the command runs through pkexec
+ *
+ * Items are separated by '|'.  When `spec` is NULL the page is the module
+ * overview (identity card, live status, selftest).
+ *
+ * This is deliberately hand-written per module — the toolkit has no single
+ * generic shape, so every page says what its own verbs actually do. */
 typedef struct {
-    const char *label;
-    const char *verb;
-    const char *arg_placeholder;  /* NULL = no args */
-    gboolean    privileged;
-    gboolean    writes_output;    /* if true, output goes to text view */
-} VerbDef;
+    const char *name;
+    const char *icon;
+    const char *spec;
+} PageSpec;
 
 typedef struct {
     const char *id;
     const char *script;
     const char *title;
     const char *subtitle;
-    const VerbDef *verbs;
-    int n_verbs;
+    const PageSpec *pages;
+    int n_pages;
 } ModuleSpec;
-
-typedef struct {
-    GtkApplication *application;
-    AppState *state;
-    GSubprocess *process;
-} _unused;
 
 typedef struct {
     AppState *state;
     const ModuleSpec *spec;
     GtkWidget *status_label;
-    GtkWidget *output_view;
     GSubprocess *status_proc;
 } GenericModulePage;
 
+/* One action page's run state: its own output view and status line, so a
+   page keeps its own result instead of everybody sharing one drawer. */
+typedef struct {
+    AppState *state;
+    const ModuleSpec *spec;
+    const PageSpec *page;
+    GtkWidget *view;
+    GtkWidget *status;
+    GSubprocess *proc;
+    GtkWidget *button;
+} PageRun;
+
 static void
-generic_page_free(gpointer data)
+page_run_busy(PageRun *r, gboolean busy)
 {
-    GenericModulePage *g = data;
-    if (g->status_proc != NULL) {
-        g_subprocess_force_exit(g->status_proc);
-        g_clear_object(&g->status_proc);
-    }
-    g_free(g);
+    if (r == NULL || r->button == NULL) return;
+    gtk_widget_set_sensitive(r->button, !busy);
 }
 
-/* Run --status-tsv and populate a text view. */
 static void
-generic_status_finished(GObject *source, GAsyncResult *result, gpointer ud)
+page_run_clear(PageRun *r)
+{
+    page_run_busy(r, FALSE);
+}
+
+/* What a verb's value field should prompt for — a bare "value" tells the
+   operator nothing. */
+static const char *
+spec_arg_placeholder(const char *verb)
+{
+    static const struct { const char *verb; const char *hint; } hints[] = {
+        { "--domain",   "example.com" },
+        { "--perm",     "bucket-name" },
+        { "--scan",     "/path/to/scan" },
+        { "--check",    "value to check" },
+        { "--probe",    "http://host/path" },
+        { "--explain",  "technique name" },
+        { "--chain",    "role name" },
+        { "--audit",    "/path/to/policy.json" },
+        { "--detect",   "credential value" },
+        { "--validate", "/path/to/credential" },
+        { "--dhl",      "namespace" },
+        { "--images",   "repository" },
+        { "--tags",     "repository" },
+        { "--pull",     "repository:tag" },
+        { "--list",     "repository" },
+        { "--dump",     "function name" },
+        { "--download", "function name" },
+        { "--env",      "function name" },
+        { "--invoke",   "function name" },
+        { "--decode",   "namespace secret" },
+        { "--ssrf",     "target url" },
+        { "--exec",     "target url" },
+        { "install",    "package name" },
+    };
+
+    for (guint i = 0; verb != NULL && i < G_N_ELEMENTS(hints); i++)
+        if (g_strcmp0(verb, hints[i].verb) == 0) return hints[i].hint;
+    return "value";
+}
+
+/* Parse "~--verb:Label!" into its parts. */
+static void
+spec_item_parse(const char *item, char **verb_out, char **label_out,
+                gboolean *needs_arg, gboolean *split_arg, gboolean *priv)
+{
+    const char *s = item;
+    char *verb, *label = NULL;
+    gboolean needs = FALSE, split = FALSE, privileged = FALSE;
+    const char *colon;
+
+    while (*s == '~') { needs = TRUE; if (s[1] == '~') split = TRUE; s++; }
+    if (*s == '~') s++;
+
+    if (s[0] != '\0' && s[strlen(s) - 1] == '!') {
+        privileged = TRUE;
+        gchar *tmp = g_strndup(s, strlen(s) - 1);
+        verb = tmp;
+    } else {
+        verb = g_strdup(s);
+    }
+
+    colon = strchr(verb, ':');
+    if (colon != NULL) {
+        label = g_strdup(colon + 1);
+        gchar *v = g_strndup(verb, (gsize) (colon - verb));
+        g_free(verb);
+        verb = v;
+    } else {
+        /* No explicit label: derive a readable one from the flag. */
+        gchar *name = g_strdup(verb);
+        char *p;
+        if (g_str_has_prefix(name, "--")) memmove(name, name + 2, strlen(name + 2) + 1);
+        for (p = name; *p != '\0'; p++)
+            if (*p == '-') *p = ' ';
+        if (*name != '\0') name[0] = (char) g_ascii_toupper(name[0]);
+        label = name;
+    }
+
+    *verb_out = verb;
+    *label_out = label;
+    *needs_arg = needs;
+    *split_arg = split;
+    *priv = privileged;
+}
+
+/* Write a command's output into a page view, colouring each line the way
+   the other toolkits do: failures red, warnings amber, results green. */
+static void
+cs_output_view_install_tags(GtkTextBuffer *buf)
+{
+    gtk_text_buffer_create_tag(buf, "cs-ok",    "foreground", "#4ade80", NULL);
+    gtk_text_buffer_create_tag(buf, "cs-warn",  "foreground", "#ffb454", NULL);
+    gtk_text_buffer_create_tag(buf, "cs-error", "foreground", "#ff6b6b", NULL);
+    gtk_text_buffer_create_tag(buf, "cs-dim",   "foreground", "#8b93a1", NULL);
+    gtk_text_buffer_create_tag(buf, "cs-plain", NULL);
+}
+
+static const char *
+cs_output_tag_for_line(const char *line)
+{
+    if (line == NULL || *line == '\0') return "cs-plain";
+    if (g_str_has_prefix(line, "#")) return "cs-dim";
+    if (g_str_has_prefix(line, "[err]")) return "cs-error";
+    if (g_str_has_prefix(line, "[warn]")) return "cs-warn";
+    if (g_strstr_len(line, -1, "FAIL") != NULL) return "cs-error";
+    if (g_strstr_len(line, -1, "error") != NULL) return "cs-error";
+    if (g_strstr_len(line, -1, "missing") != NULL) return "cs-warn";
+    if (g_strstr_len(line, -1, "denied") != NULL) return "cs-warn";
+    if (g_str_has_prefix(line, "warn") || g_str_has_prefix(line, "WARN"))
+        return "cs-warn";
+    if (g_str_has_prefix(line, "ok") || g_str_has_prefix(line, "PASS") ||
+        g_str_has_prefix(line, "RESULT\tPASS"))
+        return "cs-ok";
+    if (g_str_has_prefix(line, "note") || g_str_has_prefix(line, "hint") ||
+        g_str_has_prefix(line, "state"))
+        return "cs-dim";
+    return "cs-plain";
+}
+
+static void
+cs_output_set(GtkWidget *view, const char *text)
+{
+    GtkTextBuffer *buf;
+    gchar **lines;
+
+    if (view == NULL || !GTK_IS_TEXT_VIEW(view)) return;
+    buf = gtk_text_view_get_buffer(GTK_TEXT_VIEW(view));
+    gtk_text_buffer_set_text(buf, "", -1);
+    if (text == NULL || *text == '\0') return;
+
+    lines = g_strsplit(text, "\n", -1);
+    for (int i = 0; lines[i] != NULL; i++) {
+        GtkTextIter end;
+        gtk_text_buffer_get_end_iter(buf, &end);
+        gtk_text_buffer_insert_with_tags_by_name(
+            buf, &end, lines[i], -1,
+            cs_output_tag_for_line(lines[i]), NULL);
+        gtk_text_buffer_get_end_iter(buf, &end);
+        gtk_text_buffer_insert(buf, &end, "\n", -1);
+    }
+    g_strfreev(lines);
+}
+
+/* A page-local output pane: title strip plus a scrollable text view. */
+static GtkWidget *
+page_output_pane(GtkWidget **view_out)
+{
+    GtkWidget *card = gtk_box_new(GTK_ORIENTATION_VERTICAL, 6);
+    GtkWidget *title = gtk_label_new("OUTPUT");
+    GtkWidget *scroll = gtk_scrolled_window_new();
+    GtkWidget *view = gtk_text_view_new();
+    GtkTextBuffer *buf = gtk_text_view_get_buffer(GTK_TEXT_VIEW(view));
+
+    gtk_widget_add_css_class(card, "section-card");
+    gtk_widget_add_css_class(title, "section-title");
+    gtk_widget_add_css_class(scroll, "module-output-scroll");
+    gtk_widget_add_css_class(view, "module-output");
+    gtk_label_set_xalign(GTK_LABEL(title), 0.0f);
+    gtk_text_view_set_editable(GTK_TEXT_VIEW(view), FALSE);
+    gtk_text_view_set_cursor_visible(GTK_TEXT_VIEW(view), FALSE);
+    gtk_text_view_set_monospace(GTK_TEXT_VIEW(view), TRUE);
+    gtk_text_view_set_wrap_mode(GTK_TEXT_VIEW(view), GTK_WRAP_WORD_CHAR);
+    gtk_text_view_set_top_margin(GTK_TEXT_VIEW(view), 6);
+    gtk_text_view_set_bottom_margin(GTK_TEXT_VIEW(view), 6);
+    gtk_text_view_set_left_margin(GTK_TEXT_VIEW(view), 8);
+    gtk_text_view_set_right_margin(GTK_TEXT_VIEW(view), 8);
+    cs_output_view_install_tags(buf);
+
+    gtk_scrolled_window_set_child(GTK_SCROLLED_WINDOW(scroll), view);
+    gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(scroll),
+        GTK_POLICY_NEVER, GTK_POLICY_AUTOMATIC);
+    gtk_widget_set_vexpand(scroll, TRUE);
+    gtk_widget_set_size_request(scroll, -1, 260);
+
+    gtk_box_append(GTK_BOX(card), title);
+    gtk_box_append(GTK_BOX(card), scroll);
+    gtk_widget_set_vexpand(card, TRUE);
+    if (view_out != NULL) *view_out = view;
+    return card;
+}
+
+static void
+page_run_free(gpointer data)
+{
+    PageRun *r = data;
+    if (r == NULL) return;
+    if (r->proc != NULL) {
+        g_subprocess_force_exit(r->proc);
+        g_clear_object(&r->proc);
+    }
+    g_free(r);
+}
+
+static void
+page_run_finished(GObject *source, GAsyncResult *result, gpointer ud)
+{
+    PageRun *r = ud;
+    g_autoptr(GError) error = NULL;
+    g_autofree char *out = NULL;
+    g_autofree char *errout = NULL;
+    GString *combined = g_string_new("");
+
+    if (r == NULL) return;
+
+    if (!g_subprocess_communicate_utf8_finish(
+            G_SUBPROCESS(source), result, &out, &errout, &error)) {
+        g_autofree gchar *m = g_strdup_printf(
+            "error: %s", error ? error->message : "process failed");
+        cs_output_set(r->view, m);
+        if (r->status != NULL)
+            gtk_label_set_text(GTK_LABEL(r->status), "failed");
+        append_event(r->state, m);
+        g_clear_object(&r->proc);
+        page_run_clear(r);
+        return;
+    }
+
+    if (out != NULL) g_string_append(combined, out);
+    if (errout != NULL && *errout != '\0') {
+        if (combined->len > 0) g_string_append(combined, "\n");
+        g_string_append(combined, errout);
+    }
+    g_strchomp(combined->str);
+    cs_output_set(r->view, combined->str);
+
+    if (r->status != NULL) {
+        gboolean ok = g_subprocess_get_successful(G_SUBPROCESS(source));
+        gtk_label_set_text(GTK_LABEL(r->status), ok ? "done" : "finished");
+    }
+
+    {
+        g_autofree gchar *m = g_strdup_printf(
+            "%s: %s", r->page != NULL ? r->page->name : r->spec->title,
+            combined->len > 0 ? "output ready" : "no output");
+        append_event(r->state, m);
+    }
+
+    g_string_free(combined, TRUE);
+    g_clear_object(&r->proc);
+    page_run_clear(r);
+}
+
+static void
+page_verb_clicked(GtkButton *button, gpointer ud)
+{
+    PageRun *r = ud;
+    const char *verb = g_object_get_data(G_OBJECT(button), "cs-verb");
+    const char *label = g_object_get_data(G_OBJECT(button), "cs-label");
+    GtkWidget *entry = g_object_get_data(G_OBJECT(button), "cs-entry");
+    gboolean needs_arg = GPOINTER_TO_INT(
+        g_object_get_data(G_OBJECT(button), "cs-needs-arg"));
+    gboolean split_arg = GPOINTER_TO_INT(
+        g_object_get_data(G_OBJECT(button), "cs-split-arg"));
+    gboolean privileged = GPOINTER_TO_INT(
+        g_object_get_data(G_OBJECT(button), "cs-privileged"));
+    const char *arg = entry != NULL
+        ? gtk_editable_get_text(GTK_EDITABLE(entry)) : NULL;
+
+    if (r == NULL || verb == NULL) return;
+    if (needs_arg && (arg == NULL || *arg == '\0')) {
+        show_toast_module(r->state, r->spec->id,
+                          "Fill the field this action needs first", "warn");
+        return;
+    }
+    if (r->proc != NULL) {
+        show_toast_module(r->state, r->spec->id,
+                          "A command from this page is still running", "warn");
+        return;
+    }
+
+    const char *argv[8];
+    guint i = 0;
+    g_auto(GStrv) parts = NULL;
+
+    argv[i++] = r->spec->script;
+    argv[i++] = verb;
+    if (arg != NULL && *arg != '\0') {
+        if (split_arg) {
+            parts = g_strsplit_set(arg, " \t", -1);
+            for (int p = 0; parts[p] != NULL && i < 6; p++)
+                if (*parts[p] != '\0') argv[i++] = parts[p];
+        } else {
+            argv[i++] = arg;
+        }
+    }
+    argv[i] = NULL;
+
+    if (r->status != NULL)
+        gtk_label_set_text(GTK_LABEL(r->status), "running…");
+    cs_output_set(r->view, "running…");
+
+    if (privileged) {
+        GPtrArray *full = g_ptr_array_new();
+        g_ptr_array_add(full, (gpointer) "pkexec");
+        for (guint k = 0; argv[k] != NULL; k++) g_ptr_array_add(full, (gpointer) argv[k]);
+        g_ptr_array_add(full, NULL);
+        r->proc = g_subprocess_newv((const char * const *) full->pdata,
+            G_SUBPROCESS_FLAGS_STDOUT_PIPE | G_SUBPROCESS_FLAGS_STDERR_PIPE,
+            NULL);
+        g_ptr_array_unref(full);
+    } else {
+        r->proc = g_subprocess_newv(argv,
+            G_SUBPROCESS_FLAGS_STDOUT_PIPE | G_SUBPROCESS_FLAGS_STDERR_PIPE,
+            NULL);
+    }
+
+    if (r->proc == NULL) {
+        cs_output_set(r->view, "error: could not start the module script");
+        if (r->status != NULL) gtk_label_set_text(GTK_LABEL(r->status), "failed");
+        return;
+    }
+
+    append_event(r->state, label != NULL ? label : verb);
+    page_run_busy(r, TRUE);
+    g_subprocess_communicate_utf8_async(r->proc, NULL, NULL,
+                                        page_run_finished, r);
+}
+
+static void
+page_run_button_free(gpointer data)
+{
+    g_signal_handlers_disconnect_by_data(G_OBJECT(data), data);
+    (void) data;
+}
+
+/* One row of a card: caption, optional entry, button. */
+static GtkWidget *
+spec_build_row(PageRun *r, const char *item)
+{
+    gchar *verb = NULL, *label = NULL;
+    gboolean needs_arg = FALSE, split_arg = FALSE, privileged = FALSE;
+    GtkWidget *row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
+    GtkWidget *caption;
+    GtkWidget *entry = NULL;
+    GtkWidget *button;
+
+    spec_item_parse(item, &verb, &label, &needs_arg, &split_arg, &privileged);
+
+    caption = gtk_label_new(label);
+    gtk_widget_add_css_class(caption, "verb-caption");
+    gtk_label_set_xalign(GTK_LABEL(caption), 0.0f);
+    gtk_label_set_wrap(GTK_LABEL(caption), TRUE);
+    gtk_widget_set_size_request(caption, 168, -1);
+    gtk_widget_set_valign(caption, GTK_ALIGN_CENTER);
+    gtk_box_append(GTK_BOX(row), caption);
+
+    if (needs_arg) {
+        entry = gtk_entry_new();
+        gtk_entry_set_placeholder_text(GTK_ENTRY(entry),
+            spec_arg_placeholder(verb));
+        gtk_widget_add_css_class(entry, "verb-arg-entry");
+        gtk_widget_set_hexpand(entry, TRUE);
+        gtk_box_append(GTK_BOX(row), entry);
+    } else {
+        GtkWidget *spacer = gtk_label_new("");
+        gtk_widget_set_hexpand(spacer, TRUE);
+        gtk_box_append(GTK_BOX(row), spacer);
+    }
+
+    if (privileged) {
+        GtkWidget *hint = gtk_label_new("root");
+        gtk_widget_add_css_class(hint, "dependency-package");
+        gtk_box_append(GTK_BOX(row), hint);
+    }
+
+    button = gtk_button_new_with_label("Run");
+    gtk_widget_add_css_class(button, "verb-button");
+    gtk_widget_add_css_class(button, "accent");
+    gtk_widget_set_valign(button, GTK_ALIGN_CENTER);
+    gtk_box_append(GTK_BOX(row), button);
+
+    g_object_set_data_full(G_OBJECT(button), "cs-verb", verb, g_free);
+    g_object_set_data_full(G_OBJECT(button), "cs-label", label, g_free);
+    g_object_set_data(G_OBJECT(button), "cs-entry", entry);
+    g_object_set_data(G_OBJECT(button), "cs-needs-arg", GINT_TO_POINTER(needs_arg));
+    g_object_set_data(G_OBJECT(button), "cs-split-arg", GINT_TO_POINTER(split_arg));
+    g_object_set_data(G_OBJECT(button), "cs-privileged", GINT_TO_POINTER(privileged));
+
+    g_signal_connect(button, "clicked", G_CALLBACK(page_verb_clicked), r);
+    if (r != NULL && r->button == NULL) r->button = button;
+
+    return row;
+}
+
+/* Build an action page from its spec: cards of labelled rows, then the
+   page's own output pane. */
+static GtkWidget *
+generic_build_spec_page(AppState *state, GenericModulePage *g,
+                        const PageSpec *page_spec)
+{
+    GtkWidget *page = gtk_box_new(GTK_ORIENTATION_VERTICAL, 10);
+    GtkWidget *title = gtk_label_new(page_spec->name);
+    GtkWidget *subtitle = gtk_label_new(g->spec->subtitle);
+    GtkWidget *scroller = gtk_scrolled_window_new();
+    GtkWidget *body = gtk_box_new(GTK_ORIENTATION_VERTICAL, 10);
+    GtkWidget *card = NULL;
+    PageRun *r;
+    g_auto(GStrv) items = NULL;
+
+    gtk_widget_add_css_class(page, "dependency-page");
+    gtk_widget_add_css_class(title, "page-title");
+    gtk_widget_add_css_class(subtitle, "page-subtitle");
+    gtk_label_set_xalign(GTK_LABEL(title), 0.0f);
+    gtk_label_set_xalign(GTK_LABEL(subtitle), 0.0f);
+    gtk_label_set_wrap(GTK_LABEL(subtitle), TRUE);
+    gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(scroller),
+        GTK_POLICY_NEVER, GTK_POLICY_AUTOMATIC);
+    gtk_widget_set_vexpand(scroller, TRUE);
+    gtk_scrolled_window_set_child(GTK_SCROLLED_WINDOW(scroller), body);
+
+    r = g_new0(PageRun, 1);
+    r->state = state;
+    r->spec = g->spec;
+    r->page = page_spec;
+
+    items = g_strsplit(page_spec->spec, "|", -1);
+    for (int i = 0; items[i] != NULL; i++) {
+        const char *item = items[i];
+        if (*item == '\0') continue;
+        if (*item == '#') {
+            GtkWidget *card_title = gtk_label_new(item + 1);
+            card = gtk_box_new(GTK_ORIENTATION_VERTICAL, 8);
+            gtk_widget_add_css_class(card, "section-card");
+            gtk_widget_add_css_class(card_title, "section-title");
+            gtk_label_set_xalign(GTK_LABEL(card_title), 0.0f);
+            gtk_box_append(GTK_BOX(card), card_title);
+            gtk_box_append(GTK_BOX(body), card);
+            continue;
+        }
+        if (card == NULL) {
+            card = gtk_box_new(GTK_ORIENTATION_VERTICAL, 8);
+            gtk_widget_add_css_class(card, "section-card");
+            gtk_box_append(GTK_BOX(body), card);
+        }
+        gtk_box_append(GTK_BOX(card), spec_build_row(r, item));
+    }
+
+    {
+        GtkWidget *pane = page_output_pane(&r->view);
+        GtkWidget *row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 8);
+        GtkWidget *status = gtk_label_new("idle");
+
+        gtk_widget_add_css_class(status, "dependency-summary");
+        gtk_label_set_xalign(GTK_LABEL(status), 0.0f);
+        gtk_widget_set_hexpand(status, TRUE);
+        gtk_box_append(GTK_BOX(row), status);
+        gtk_box_append(GTK_BOX(pane), row);
+        r->status = status;
+        gtk_box_append(GTK_BOX(body), pane);
+    }
+
+    g_object_set_data_full(G_OBJECT(page), "cs-run", r, page_run_free);
+
+    gtk_box_append(GTK_BOX(page), title);
+    gtk_box_append(GTK_BOX(page), subtitle);
+    gtk_box_append(GTK_BOX(page), scroller);
+    (void) state;
+    return page;
+}
+
+
+static void
+overview_status_finished(GObject *source, GAsyncResult *result, gpointer ud)
 {
     GenericModulePage *g = ud;
     g_autoptr(GError) error = NULL;
     g_autofree char *out = NULL;
     g_autofree char *errout = NULL;
+    GtkWidget *view = g_object_get_data(G_OBJECT(g->status_label), "cs-view");
 
-    if (!g_subprocess_communicate_utf8_finish(
-            G_SUBPROCESS(source), result, &out, &errout, &error))
-        return;
-    g_clear_object(&g->status_proc);
-
-    if (g->output_view != NULL) {
-        GtkTextBuffer *buf = gtk_text_view_get_buffer(
-            GTK_TEXT_VIEW(g->output_view));
-        gtk_text_buffer_set_text(buf,
-            (out && *out) ? out : "(no status output)", -1);
+    if (g_subprocess_communicate_utf8_finish(
+            G_SUBPROCESS(source), result, &out, &errout, &error)) {
+        g_autofree gchar *text = g_strdup_printf("%s%s%s",
+            out != NULL ? out : "",
+            (errout != NULL && *errout != '\0') ? "\n" : "",
+            (errout != NULL && *errout != '\0') ? errout : "");
+        g_strchomp(text);
+        cs_output_set(view, *text != '\0' ? text : "no status reported");
+        gtk_label_set_text(GTK_LABEL(g->status_label), "status refreshed");
+    } else {
+        cs_output_set(view, error != NULL ? error->message : "status failed");
+        gtk_label_set_text(GTK_LABEL(g->status_label), "status failed");
     }
+    g_clear_object(&g->status_proc);
 }
 
 static void
-generic_status_refresh(GenericModulePage *g)
+overview_refresh_clicked(GtkButton *b, gpointer ud)
 {
-    g_autoptr(GError) error = NULL;
+    GenericModulePage *g = ud;
     const char *argv[3];
+    g_autoptr(GError) error = NULL;
 
     if (g->status_proc != NULL) return;
-
     argv[0] = g->spec->script;
     argv[1] = "--status-tsv";
     argv[2] = NULL;
@@ -996,146 +1478,29 @@ generic_status_refresh(GenericModulePage *g)
     g->status_proc = g_subprocess_newv(argv,
         G_SUBPROCESS_FLAGS_STDOUT_PIPE | G_SUBPROCESS_FLAGS_STDERR_PIPE,
         &error);
-
-    if (g->status_proc == NULL) return;
-    g_subprocess_communicate_utf8_async(
-        g->status_proc, NULL, NULL, generic_status_finished, g);
+    if (g->status_proc == NULL) {
+        gtk_label_set_text(GTK_LABEL(g->status_label),
+                           error != NULL ? error->message : "spawn failed");
+        return;
+    }
+    gtk_label_set_text(GTK_LABEL(g->status_label), "checking…");
+    g_subprocess_communicate_utf8_async(g->status_proc, NULL, NULL,
+                                        overview_status_finished, g);
+    (void) b;
 }
 
 static void
-generic_verb_clicked(GtkButton *b, gpointer ud)
+overview_selftest_clicked(GtkButton *b, gpointer ud)
 {
     GenericModulePage *g = ud;
-    const VerbDef *v = g_object_get_data(G_OBJECT(b), "verb-def");
-    GtkWidget *entry = g_object_get_data(G_OBJECT(b), "args-entry");
-    const char *arg = entry != NULL
-        ? gtk_editable_get_text(GTK_EDITABLE(entry)) : NULL;
+    const char *const argv[3] = { g->spec->script, "--selftest", NULL };
+    GtkWidget *view = g_object_get_data(G_OBJECT(b), "cs-view");
 
-    if (v == NULL || g == NULL) return;
-
-    const char *argv[5];
-    guint i = 0;
-    argv[i++] = g->spec->script;
-    argv[i++] = v->verb;
-    if (arg != NULL && *arg != '\0')
-        argv[i++] = arg;
-    argv[i] = NULL;
-
-    GtkWidget *output = v->writes_output ? g->output_view : NULL;
-    run_module_command(g->state, g->spec->id, v->label,
-                       g->status_label, output, argv, v->privileged);
+    run_module_command(g->state, g->spec->id, "Self-test",
+                       g->status_label, view, argv, FALSE);
 }
 
-/* Build one action page from the module's verb list. */
-static GtkWidget *
-generic_build_actions(AppState *state, gpointer module_data)
-{
-    GenericModulePage *g = module_data;
-    GtkWidget *page = gtk_box_new(GTK_ORIENTATION_VERTICAL, 10);
-    GtkWidget *title = gtk_label_new(g->spec->title);
-    GtkWidget *subtitle = gtk_label_new(g->spec->subtitle);
-    GtkWidget *card = gtk_box_new(GTK_ORIENTATION_VERTICAL, 8);
-    GtkWidget *card_title = gtk_label_new("ACTIONS");
-    GtkWidget *status = gtk_label_new("idle");
-
-    gtk_widget_add_css_class(page, "dependency-page");
-    gtk_widget_add_css_class(title, "page-title");
-    gtk_widget_add_css_class(subtitle, "page-subtitle");
-    gtk_widget_add_css_class(card, "section-card");
-    gtk_widget_add_css_class(card_title, "section-title");
-    gtk_widget_add_css_class(status, "dependency-summary");
-    gtk_label_set_xalign(GTK_LABEL(title), 0.0f);
-    gtk_label_set_xalign(GTK_LABEL(subtitle), 0.0f);
-    gtk_label_set_xalign(GTK_LABEL(card_title), 0.0f);
-    gtk_label_set_xalign(GTK_LABEL(status), 0.0f);
-    gtk_label_set_wrap(GTK_LABEL(subtitle), TRUE);
-
-    for (int i = 0; i < g->spec->n_verbs; i++) {
-        const VerbDef *v = &g->spec->verbs[i];
-        GtkWidget *row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 8);
-        GtkWidget *btn = gtk_button_new_with_label(v->label);
-        gtk_widget_add_css_class(btn, "accent");
-        gtk_widget_set_valign(btn, GTK_ALIGN_CENTER);
-        g_object_set_data(G_OBJECT(btn), "verb-def", (gpointer) v);
-
-        if (v->arg_placeholder != NULL) {
-            GtkWidget *entry = gtk_entry_new();
-            gtk_entry_set_placeholder_text(GTK_ENTRY(entry),
-                                           v->arg_placeholder);
-            gtk_widget_set_hexpand(entry, TRUE);
-            gtk_box_append(GTK_BOX(row), entry);
-            g_object_set_data(G_OBJECT(btn), "args-entry", entry);
-        } else {
-            GtkWidget *spacer = gtk_label_new("");
-            gtk_widget_set_hexpand(spacer, TRUE);
-            gtk_box_append(GTK_BOX(row), spacer);
-        }
-        if (v->privileged) {
-            GtkWidget *hint = gtk_label_new("needs root");
-            gtk_widget_add_css_class(hint, "dependency-package");
-            gtk_box_append(GTK_BOX(row), hint);
-        }
-        gtk_box_append(GTK_BOX(row), btn);
-        gtk_box_append(GTK_BOX(card), row);
-        g_signal_connect(btn, "clicked",
-                         G_CALLBACK(generic_verb_clicked), g);
-    }
-
-    gtk_box_append(GTK_BOX(card), status);
-    g->status_label = status;
-
-    gtk_box_append(GTK_BOX(page), title);
-    gtk_box_append(GTK_BOX(page), subtitle);
-    gtk_box_append(GTK_BOX(page), card);
-
-    (void) state;
-    return page;
-}
-
-/* Raw output page: whatever the last command or --status-tsv wrote. */
-static GtkWidget *
-generic_build_output(AppState *state, gpointer module_data)
-{
-    GenericModulePage *g = module_data;
-    GtkWidget *page = gtk_box_new(GTK_ORIENTATION_VERTICAL, 8);
-    GtkWidget *title = gtk_label_new("Output");
-    GtkWidget *row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 8);
-    GtkWidget *refresh = gtk_button_new_with_label("Reload status");
-    GtkWidget *scroll = gtk_scrolled_window_new();
-    GtkWidget *view = gtk_text_view_new();
-
-    gtk_widget_add_css_class(page, "dependency-page");
-    gtk_widget_add_css_class(title, "page-title");
-    gtk_widget_add_css_class(view, "event-view");
-    gtk_label_set_xalign(GTK_LABEL(title), 0.0f);
-    gtk_widget_set_hexpand(refresh, FALSE);
-    gtk_widget_set_halign(row, GTK_ALIGN_START);
-    gtk_widget_set_vexpand(scroll, TRUE);
-
-    gtk_text_view_set_editable(GTK_TEXT_VIEW(view), FALSE);
-    gtk_text_view_set_cursor_visible(GTK_TEXT_VIEW(view), FALSE);
-    gtk_text_view_set_monospace(GTK_TEXT_VIEW(view), TRUE);
-    gtk_text_view_set_wrap_mode(GTK_TEXT_VIEW(view), GTK_WRAP_NONE);
-
-    gtk_scrolled_window_set_child(GTK_SCROLLED_WINDOW(scroll), view);
-    gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(scroll),
-        GTK_POLICY_AUTOMATIC, GTK_POLICY_AUTOMATIC);
-
-    gtk_box_append(GTK_BOX(row), refresh);
-    gtk_box_append(GTK_BOX(page), title);
-    gtk_box_append(GTK_BOX(page), row);
-    gtk_box_append(GTK_BOX(page), scroll);
-
-    g->output_view = view;
-    g_signal_connect_swapped(refresh, "clicked",
-                             G_CALLBACK(generic_status_refresh), g);
-    generic_status_refresh(g);
-
-    (void) state;
-    return page;
-}
-
-/* Overview page — status + help/description. */
+/* Overview page: what the module is, its live status, and a self-test. */
 static GtkWidget *
 generic_build_overview(AppState *state, gpointer module_data)
 {
@@ -1143,251 +1508,324 @@ generic_build_overview(AppState *state, gpointer module_data)
     GtkWidget *page = gtk_box_new(GTK_ORIENTATION_VERTICAL, 10);
     GtkWidget *title = gtk_label_new(g->spec->title);
     GtkWidget *subtitle = gtk_label_new(g->spec->subtitle);
-    GtkWidget *card = gtk_box_new(GTK_ORIENTATION_VERTICAL, 6);
-    GtkWidget *card_title = gtk_label_new("MODULE");
+    GtkWidget *scroller = gtk_scrolled_window_new();
+    GtkWidget *body = gtk_box_new(GTK_ORIENTATION_VERTICAL, 10);
+    GtkWidget *id_card = gtk_box_new(GTK_ORIENTATION_VERTICAL, 6);
+    GtkWidget *id_title = gtk_label_new("MODULE");
     GtkWidget *id_lbl = gtk_label_new(g->spec->id);
     GtkWidget *script_lbl = gtk_label_new(g->spec->script);
     GtkWidget *note = gtk_label_new(
-        "Run --actions to invoke verbs, or open Raw Terminal (Ctrl+T) "
-        "to use the module's interactive --menu.");
+        "Every verb of this module has a button on the pages beside this one. "
+        "Open Raw Terminal (Ctrl+T) for the module's interactive menu.");
+    GtkWidget *status_card = gtk_box_new(GTK_ORIENTATION_VERTICAL, 8);
+    GtkWidget *status_title = gtk_label_new("STATUS");
+    GtkWidget *status_row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 8);
+    GtkWidget *status = gtk_label_new("not checked");
+    GtkWidget *refresh = gtk_button_new_with_label("Refresh status");
+    GtkWidget *selftest = gtk_button_new_with_label("Self-test");
+    GtkWidget *pane;
+    GtkWidget *view = NULL;
 
     gtk_widget_add_css_class(page, "dependency-page");
     gtk_widget_add_css_class(title, "page-title");
     gtk_widget_add_css_class(subtitle, "page-subtitle");
-    gtk_widget_add_css_class(card, "section-card");
-    gtk_widget_add_css_class(card_title, "section-title");
+    gtk_widget_add_css_class(id_card, "section-card");
+    gtk_widget_add_css_class(id_title, "section-title");
     gtk_widget_add_css_class(id_lbl, "dependency-name");
     gtk_widget_add_css_class(script_lbl, "dependency-package");
     gtk_widget_add_css_class(note, "dependency-summary");
+    gtk_widget_add_css_class(status_card, "section-card");
+    gtk_widget_add_css_class(status_title, "section-title");
+    gtk_widget_add_css_class(status, "dependency-summary");
+    gtk_widget_add_css_class(refresh, "verb-button");
+    gtk_widget_add_css_class(selftest, "verb-button");
+    gtk_widget_add_css_class(selftest, "accent");
+
     gtk_label_set_xalign(GTK_LABEL(title), 0.0f);
     gtk_label_set_xalign(GTK_LABEL(subtitle), 0.0f);
-    gtk_label_set_xalign(GTK_LABEL(card_title), 0.0f);
+    gtk_label_set_xalign(GTK_LABEL(id_title), 0.0f);
     gtk_label_set_xalign(GTK_LABEL(id_lbl), 0.0f);
     gtk_label_set_xalign(GTK_LABEL(script_lbl), 0.0f);
     gtk_label_set_xalign(GTK_LABEL(note), 0.0f);
+    gtk_label_set_xalign(GTK_LABEL(status_title), 0.0f);
+    gtk_label_set_xalign(GTK_LABEL(status), 0.0f);
     gtk_label_set_wrap(GTK_LABEL(subtitle), TRUE);
     gtk_label_set_wrap(GTK_LABEL(note), TRUE);
+    gtk_widget_set_hexpand(status, TRUE);
 
-    gtk_box_append(GTK_BOX(card), card_title);
-    gtk_box_append(GTK_BOX(card), id_lbl);
-    gtk_box_append(GTK_BOX(card), script_lbl);
-    gtk_box_append(GTK_BOX(card), note);
+    gtk_box_append(GTK_BOX(id_card), id_title);
+    gtk_box_append(GTK_BOX(id_card), id_lbl);
+    gtk_box_append(GTK_BOX(id_card), script_lbl);
+    gtk_box_append(GTK_BOX(id_card), note);
+
+    gtk_box_append(GTK_BOX(status_row), status);
+    gtk_box_append(GTK_BOX(status_row), selftest);
+    gtk_box_append(GTK_BOX(status_row), refresh);
+    gtk_box_append(GTK_BOX(status_card), status_title);
+    gtk_box_append(GTK_BOX(status_card), status_row);
+
+    pane = page_output_pane(&view);
+    g->status_label = status;
+    g_object_set_data(G_OBJECT(status), "cs-view", view);
+    g_object_set_data(G_OBJECT(selftest), "cs-view", view);
+
+    g_signal_connect(refresh, "clicked",
+                     G_CALLBACK(overview_refresh_clicked), g);
+    g_signal_connect(selftest, "clicked",
+                     G_CALLBACK(overview_selftest_clicked), g);
+
+    gtk_box_append(GTK_BOX(body), id_card);
+    gtk_box_append(GTK_BOX(body), status_card);
+    gtk_box_append(GTK_BOX(body), pane);
+    gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(scroller),
+        GTK_POLICY_NEVER, GTK_POLICY_AUTOMATIC);
+    gtk_widget_set_vexpand(scroller, TRUE);
+    gtk_scrolled_window_set_child(GTK_SCROLLED_WINDOW(scroller), body);
 
     gtk_box_append(GTK_BOX(page), title);
     gtk_box_append(GTK_BOX(page), subtitle);
-    gtk_box_append(GTK_BOX(page), card);
+    gtk_box_append(GTK_BOX(page), scroller);
     (void) state;
     return page;
 }
 
+/* A page spec with no button list is the overview. */
+static GtkWidget *
+build_module_view(AppState *state, gpointer module_data, const PageSpec *ps)
+{
+    GenericModulePage *g = module_data;
+    if (ps == NULL || ps->spec == NULL)
+        return generic_build_overview(state, g);
+    return generic_build_spec_page(state, g, ps);
+}
+
 /* ==================================================================== */
-/*  Per-module verb tables                                               */
+/*  Per-module page tables                                              */
 /* ==================================================================== */
 
 #define S(n)  SCRIPT(n)
 
-/* ---- 00_deps — special-cased below ---- */
-static const VerbDef deps_verbs[] = {
-    { "Refresh status",        "--status-tsv",      NULL,               FALSE, TRUE },
-    { "Install missing",       "--install-missing", NULL,               TRUE,  TRUE },
-    { "Install full toolchain","--install-all",     NULL,               TRUE,  TRUE },
-    { "Install pipx tools",    "--install-pipx",    NULL,               FALSE, TRUE },
-    { "Install git tools",     "--install-git",     NULL,               FALSE, TRUE },
+/* ---- 00_deps ---- */
+static const PageSpec deps_pages[] = {
+    { "Overview", "dialog-information-symbolic", NULL },
+    { "Tools", "applications-system-symbolic",
+      "#STATUS|--status-tsv:Tool status|--preflight:Preflight|--distro-info:Distro info"
+      "|#INSTALL|~install:Install a package!|--install-missing:Install missing!"
+      "|--install-all:Install everything!|--install-pipx:Install pipx!"
+      "|--install-git:Install git!" },
 };
 
 /* ---- 01_cred_validate ---- */
-static const VerbDef cred_verbs[] = {
-    { "Validate file / stdin", "--validate",        "path or -",         FALSE, TRUE },
-    { "Detect only (offline)", "--detect",          "path or -",         FALSE, TRUE },
-    { "List known formats",    "--list-formats",    NULL,                FALSE, TRUE },
+static const PageSpec cred_pages[] = {
+    { "Overview", "dialog-information-symbolic", NULL },
+    { "Detect", "system-search-symbolic",
+      "#OFFLINE DETECTION|--detect:Detect credentials|--list-formats:Supported formats"
+      "|#LIVE VALIDATION|~--validate:Validate a credential" },
 };
 
 /* ---- 02_inventory ---- */
-static const VerbDef inv_verbs[] = {
-    { "Full inventory",        "--run",             NULL,                FALSE, TRUE },
-    { "One provider",          "--run",             "aws|gcloud|az|doctl",FALSE, TRUE },
-    { "Show regions",          "--regions",         "aws|gcp|az|doctl",  FALSE, TRUE },
-    { "Provider states",       "--status-tsv",      NULL,                FALSE, TRUE },
+static const PageSpec inv_pages[] = {
+    { "Overview", "dialog-information-symbolic", NULL },
+    { "Sweep", "view-refresh-symbolic",
+      "#COLLECT|--run:Run inventory sweep|#REFERENCE|--regions:Configured regions" },
 };
 
 /* ---- 03_bucket_enum ---- */
-static const VerbDef bucket_verbs[] = {
-    { "Authenticated sweep",   "--enum",            NULL,                FALSE, TRUE },
-    { "Probe one bucket",      "--perm",            "bucket-name",       FALSE, TRUE },
-    { "Guess for a domain",    "--domain",          "example.com",       FALSE, TRUE },
+static const PageSpec bucket_pages[] = {
+    { "Overview", "dialog-information-symbolic", NULL },
+    { "Guess", "system-search-symbolic",
+      "#UNAUTHENTICATED|~--domain:Guess buckets for a domain|~--perm:Probe one bucket"
+      "|#AUTHENTICATED|--enum:Authenticated sweep" },
 };
 
 /* ---- 04_takeover ---- */
-static const VerbDef takeover_verbs[] = {
-    { "Scan a domain",         "--scan",            "example.com",       FALSE, TRUE },
-    { "Check one subdomain",   "--check",           "sub.example.com",   FALSE, TRUE },
-    { "Fingerprint table",     "--list",            NULL,                FALSE, TRUE },
+static const PageSpec takeover_pages[] = {
+    { "Overview", "dialog-information-symbolic", NULL },
+    { "Scan", "system-search-symbolic",
+      "#TARGETS|~--scan:Scan a domain|~--check:Check one subdomain"
+      "|#REFERENCE|--list:Fingerprint table" },
 };
 
 /* ---- 05_iam_privesc ---- */
-static const VerbDef privesc_verbs[] = {
-    { "Map current caller",    "--map",             NULL,                FALSE, TRUE },
-    { "Explain technique",     "--explain",         "PassRole|PutUserPolicy|...", FALSE, TRUE },
-    { "Technique list",        "--list",            NULL,                FALSE, TRUE },
-    { "Check action",          "--check",           "iam:PassRole",      FALSE, TRUE },
+static const PageSpec privesc_pages[] = {
+    { "Overview", "dialog-information-symbolic", NULL },
+    { "Map", "security-high-symbolic",
+      "#CALLER|--map:Map current caller"
+      "|#KNOWLEDGE|--list:Technique list|~--explain:Explain a technique"
+      "|~--check:Check an action" },
 };
 
 /* ---- 06_role_chains ---- */
-static const VerbDef chains_verbs[] = {
-    { "Who am I",              "--whoami",          NULL,                FALSE, TRUE },
-    { "Scan role trusts",      "--scan",            NULL,                FALSE, TRUE },
-    { "Walk a role chain",     "--chain",           "arn:aws:iam::…:role/…", FALSE, TRUE },
-    { "List cached trusts",    "--list",            NULL,                FALSE, TRUE },
+static const PageSpec chains_pages[] = {
+    { "Overview", "dialog-information-symbolic", NULL },
+    { "Chains", "view-list-symbolic",
+      "#DISCOVERY|--scan:Scan trust policies|--whoami:Who am I|--list:List roles"
+      "|#TRACE|~--chain:Trace a chain from a role" },
 };
 
 /* ---- 07_policy_audit ---- */
-static const VerbDef audit_verbs[] = {
-    { "Audit a policy file",   "--audit",           "/path/to/policy.json  or  -", FALSE, TRUE },
-    { "Audit account policies", "--audit",          NULL,                FALSE, TRUE },
-    { "Rule list",             "--list",            NULL,                FALSE, TRUE },
+static const PageSpec audit_pages[] = {
+    { "Overview", "dialog-information-symbolic", NULL },
+    { "Audit", "security-high-symbolic",
+      "#POLICIES|--audit:Audit live policies|~--audit:Audit a policy file" },
+    { "Rules", "view-list-symbolic",
+      "#KNOWLEDGE BASE|--list:Rule list|~--explain:Explain a rule"
+      "|~--check:Check a keyword" },
 };
 
 /* ---- 08_secrets_scan ---- */
-static const VerbDef secrets_verbs[] = {
-    { "Scan file / directory", "--scan",            "/path/to/scan",     FALSE, TRUE },
-    { "Detect one token",      "--detect",          "token or -",        FALSE, TRUE },
-    { "Signature list",        "--list",            NULL,                FALSE, TRUE },
+static const PageSpec secrets_pages[] = {
+    { "Overview", "dialog-information-symbolic", NULL },
+    { "Scan", "system-search-symbolic",
+      "#SCAN|~--scan:Scan a path|~--detect:Detect a secret"
+      "|#REFERENCE|--list:Signature list" },
 };
 
 /* ---- 09_ssrf_imds ---- */
-static const VerbDef ssrf_verbs[] = {
-    { "Probe all IMDS endpoints", "--tunnel",       NULL,                FALSE, TRUE },
-    { "Probe one URL",         "--probe",           "http://...",        FALSE, TRUE },
-    { "Check reachability",    "--check",           "http://...",        FALSE, TRUE },
-    { "Endpoint list",         "--list",            NULL,                FALSE, TRUE },
+static const PageSpec ssrf_pages[] = {
+    { "Overview", "dialog-information-symbolic", NULL },
+    { "Probe", "network-transmit-receive-symbolic",
+      "#TARGETS|~--probe:Probe a URL|~--check:Check a URL"
+      "|#SWEEP|--tunnel:Sweep every endpoint|#REFERENCE|--list:Endpoint list" },
 };
 
 /* ---- 10_imdsv2_bypass ---- */
-static const VerbDef imds2_verbs[] = {
-    { "Token from IMDS",       "--ssrf",            "http://169.254.169.254/…", FALSE, TRUE },
-    { "Check a URL",           "--check",           "http://...",        FALSE, TRUE },
-    { "Technique list",        "--headers",         NULL,                FALSE, TRUE },
+static const PageSpec imds2_pages[] = {
+    { "Overview", "dialog-information-symbolic", NULL },
+    { "Bypass", "security-high-symbolic",
+      "#REQUEST|~--ssrf:Request a v2 token|~--exec:Run a bypass chain"
+      "|~--check:Check a target" },
+    { "Reference", "view-list-symbolic",
+      "#TECHNIQUES|--headers:Header techniques|~--list:Technique list" },
 };
 
 /* ---- 11_user_data ---- */
-static const VerbDef userdata_verbs[] = {
-    { "Dump metadata",         "--dump",            "optional-token",    FALSE, TRUE },
-    { "Extract user-data",     "--extract",         "optional-token",    FALSE, TRUE },
-    { "Key list",              "--keys",            NULL,                FALSE, TRUE },
+static const PageSpec userdata_pages[] = {
+    { "Overview", "dialog-information-symbolic", NULL },
+    { "Extract", "document-save-symbolic",
+      "#INSTANCE METADATA|--dump:Dump user-data|--extract:Extract and scan"
+      "|#REFERENCE|--keys:Key list|--list:Metadata list" },
 };
 
 /* ---- 12_lambda_dump ---- */
-static const VerbDef lambda_verbs[] = {
-    { "List functions",        "--list",            NULL,                FALSE, TRUE },
-    { "Dump config",           "--dump",            "function-name",     FALSE, TRUE },
-    { "Download code",         "--download",        "function-name",     FALSE, TRUE },
-    { "Print env vars",        "--env",             "function-name",     FALSE, TRUE },
-    { "List URLs",             "--urls",            NULL,                FALSE, TRUE },
+static const PageSpec lambda_pages[] = {
+    { "Overview", "dialog-information-symbolic", NULL },
+    { "Enumerate", "view-list-symbolic",
+      "#ENUMERATION|--list:List functions|--urls:List function URLs" },
+    { "Function", "document-save-symbolic",
+      "#BY FUNCTION|~--dump:Dump configuration|~--download:Download code"
+      "|~--env:Print environment" },
 };
 
 /* ---- 13_serverless_recon ---- */
-static const VerbDef serverless_verbs[] = {
-    { "List functions",        "--list",             NULL,               FALSE, TRUE },
-    { "Print env vars",        "--env",              "function-name",    FALSE, TRUE },
-    { "List function URLs",    "--urls",             NULL,               FALSE, TRUE },
-    { "Invoke a function",     "--invoke",           "provider function", FALSE, TRUE },
-    { "Full sweep",            "--all",              NULL,               FALSE, TRUE },
+static const PageSpec serverless_pages[] = {
+    { "Overview", "dialog-information-symbolic", NULL },
+    { "Enumerate", "view-list-symbolic",
+      "#ENUMERATION|--list:List functions|--urls:List function URLs" },
+    { "Invoke", "system-run-symbolic",
+      "#FUNCTION|~--env:Print environment"
+      "|#SWEEP|~--invoke:Invoke a function|--all:Full sweep" },
 };
 
 /* ---- 14_registry_recon ---- */
-static const VerbDef registry_verbs[] = {
-    { "List registries",       "--scan",             NULL,               FALSE, TRUE },
-    { "List repositories",     "--list",             "registry",         FALSE, TRUE },
-    { "List tags",             "--tags",             "repo",             FALSE, TRUE },
-    { "Pull an image",         "--pull",             "repo:tag",         FALSE, TRUE },
-    { "Docker Hub OSINT",      "--dhl",              "namespace",        FALSE, TRUE },
+static const PageSpec registry_pages[] = {
+    { "Overview", "dialog-information-symbolic", NULL },
+    { "Registries", "view-list-symbolic",
+      "#SWEEP|--scan:Scan registries"
+      "|#REPOSITORY|~--list:List repositories|~--images:List images"
+      "|~--tags:List tags|~--pull:Pull an image" },
+    { "Marketplace OSINT", "system-search-symbolic",
+      "#DOCKER HUB|~--dhl:Search a namespace" },
 };
 
 /* ---- 15_container_escape ---- */
-static const VerbDef escape_verbs[] = {
-    { "Full escape scan",      "--all",              NULL,               FALSE, TRUE },
-    { "Capabilities",          "--cap",              NULL,               FALSE, TRUE },
-    { "Mount points",          "--mounts",           NULL,               FALSE, TRUE },
-    { "Proc / namespaces",     "--proc",             NULL,               FALSE, TRUE },
-    { "Cgroup escape",         "--cgroup",           NULL,               FALSE, TRUE },
-    { "Host / docker socket",  "--host",             NULL,               FALSE, TRUE },
+static const PageSpec escape_pages[] = {
+    { "Overview", "dialog-information-symbolic", NULL },
+    { "Scan", "security-high-symbolic",
+      "#SCAN|--all:Full escape scan|--check:Check runtime" },
+    { "Surface", "view-list-symbolic",
+      "#SURFACE|--mounts:Mount points|--proc:Proc and namespaces"
+      "|--cgroup:Cgroup escape|--host:Host and docker socket" },
+    { "Reference", "view-list-symbolic", "#TECHNIQUES|--list:Technique list" },
 };
 
 /* ---- 16_k8s_attack_surface ---- */
-static const VerbDef k8ssurf_verbs[] = {
-    { "List clusters",         "--clusters",         NULL,               FALSE, TRUE },
-    { "List nodes",            "--nodes",            NULL,               FALSE, TRUE },
-    { "List pods",             "--pods",             NULL,               FALSE, TRUE },
-    { "RBAC self-audit",       "--rbac",             NULL,               FALSE, TRUE },
-    { "List secrets",          "--secrets",          NULL,               FALSE, TRUE },
-    { "Full sweep",            "--all",              NULL,               FALSE, TRUE },
+static const PageSpec k8ssurf_pages[] = {
+    { "Overview", "dialog-information-symbolic", NULL },
+    { "Enumerate", "view-list-symbolic",
+      "#CLUSTER|--clusters:List clusters"
+      "|#WORKLOAD|--nodes:List nodes|--pods:List pods|--secrets:List secrets" },
+    { "Audit", "security-high-symbolic",
+      "#AUDIT|--rbac:RBAC self-audit|--all:Full sweep|#REFERENCE|--list:Verb list" },
 };
 
 /* ---- 17_k8s_secrets ---- */
-static const VerbDef k8ssec_verbs[] = {
-    { "Extract secrets",       "--extract",          "namespace",        FALSE, TRUE },
-    { "Decode a secret",       "--decode",           "namespace secret", FALSE, TRUE },
-    { "Service-account tokens", "--sa-tokens",       NULL,               FALSE, TRUE },
-    { "RBAC abuse paths",      "--rbac-abuse",       NULL,               FALSE, TRUE },
-    { "Full sweep",            "--all",              NULL,               FALSE, TRUE },
+static const PageSpec k8ssec_pages[] = {
+    { "Overview", "dialog-information-symbolic", NULL },
+    { "Secrets", "dialog-password-symbolic",
+      "#EXTRACT|--extract:Extract secrets|~~--decode:Decode a secret (namespace secret)"
+      "|--sa-tokens:Service-account tokens" },
+    { "Abuse", "security-high-symbolic",
+      "#RBAC|--rbac-abuse:RBAC abuse paths|--all:Full sweep"
+      "|#REFERENCE|--list:Verb list" },
 };
 
 /* ---- Master spec table ---- */
 static const ModuleSpec module_specs[] = {
-    { "00_deps",          S("00_deps.sh"),
-      "Dependencies",     "Install required cloud CLIs and build tools.",
-      deps_verbs,         G_N_ELEMENTS(deps_verbs) },
+    { "00_deps", S("00_deps.sh"),
+      "Dependencies", "Install required cloud CLIs and build tools.",
+      deps_pages, G_N_ELEMENTS(deps_pages) },
     { "01_cred_validate", S("01_cred_validate.sh"),
       "Credential Validator", "Detect provider, validate format, live-probe.",
-      cred_verbs,         G_N_ELEMENTS(cred_verbs) },
-    { "02_inventory",     S("02_inventory.sh"),
-      "Cloud Inventory",  "Enumerate all reachable assets across providers.",
-      inv_verbs,          G_N_ELEMENTS(inv_verbs) },
-    { "03_bucket_enum",   S("03_bucket_enum.sh"),
-      "Bucket Enum",      "Find, probe, and rate bucket exposure.",
-      bucket_verbs,       G_N_ELEMENTS(bucket_verbs) },
-    { "04_takeover",      S("04_takeover.sh"),
-      "Subdomain Takeover", "Detect dangling CNAMEs to claimable services.",
-      takeover_verbs,     G_N_ELEMENTS(takeover_verbs) },
-    { "05_iam_privesc",   S("05_iam_privesc.sh"),
-      "IAM PrivEsc",      "Map IAM privilege escalation paths.",
-      privesc_verbs,      G_N_ELEMENTS(privesc_verbs) },
-    { "06_role_chains",   S("06_role_chains.sh"),
-      "Role Chains",      "Analyze trust policies and assume-role hops.",
-      chains_verbs,       G_N_ELEMENTS(chains_verbs) },
-    { "07_policy_audit",  S("07_policy_audit.sh"),
-      "Policy Audit",     "Audit IAM policies for risky patterns.",
-      audit_verbs,        G_N_ELEMENTS(audit_verbs) },
-    { "08_secrets_scan",  S("08_secrets_scan.sh"),
-      "Secrets Scanner",  "Fingerprint exposed secrets in files, repos, env.",
-      secrets_verbs,      G_N_ELEMENTS(secrets_verbs) },
-    { "09_ssrf_imds",     S("09_ssrf_imds.sh"),
-      "SSRF → IMDS",      "Probe SSRF vectors against cloud metadata.",
-      ssrf_verbs,         G_N_ELEMENTS(ssrf_verbs) },
+      cred_pages, G_N_ELEMENTS(cred_pages) },
+    { "02_inventory", S("02_inventory.sh"),
+      "Cloud Inventory", "Enumerate all reachable assets across providers.",
+      inv_pages, G_N_ELEMENTS(inv_pages) },
+    { "03_bucket_enum", S("03_bucket_enum.sh"),
+      "Bucket Enum", "Find, probe and rate bucket exposure.",
+      bucket_pages, G_N_ELEMENTS(bucket_pages) },
+    { "04_takeover", S("04_takeover.sh"),
+      "Subdomain Takeover", "Fingerprint dangling CNAMEs and claimable services.",
+      takeover_pages, G_N_ELEMENTS(takeover_pages) },
+    { "05_iam_privesc", S("05_iam_privesc.sh"),
+      "IAM PrivEsc", "Map IAM privilege escalation paths.",
+      privesc_pages, G_N_ELEMENTS(privesc_pages) },
+    { "06_role_chains", S("06_role_chains.sh"),
+      "Role Chains", "Follow assume-role chains across accounts.",
+      chains_pages, G_N_ELEMENTS(chains_pages) },
+    { "07_policy_audit", S("07_policy_audit.sh"),
+      "Policy Audit", "Audit IAM policies for dangerous statements.",
+      audit_pages, G_N_ELEMENTS(audit_pages) },
+    { "08_secrets_scan", S("08_secrets_scan.sh"),
+      "Secrets Scanner", "Hunt credentials in files, trees and streams.",
+      secrets_pages, G_N_ELEMENTS(secrets_pages) },
+    { "09_ssrf_imds", S("09_ssrf_imds.sh"),
+      "SSRF - IMDS", "Probe proxy-shaped paths into instance metadata.",
+      ssrf_pages, G_N_ELEMENTS(ssrf_pages) },
     { "10_imdsv2_bypass", S("10_imdsv2_bypass.sh"),
-      "IMDSv2 Bypass",    "Bypass IMDSv2 protections.",
-      imds2_verbs,        G_N_ELEMENTS(imds2_verbs) },
-    { "11_user_data",     S("11_user_data.sh"),
-      "User Data",        "Extract EC2 user-data and instance metadata.",
-      userdata_verbs,     G_N_ELEMENTS(userdata_verbs) },
-    { "12_lambda_dump",   S("12_lambda_dump.sh"),
-      "Lambda Dump",      "Enumerate and extract Lambda code + env.",
-      lambda_verbs,       G_N_ELEMENTS(lambda_verbs) },
+      "IMDSv2 Bypass", "Techniques that still reach IMDSv2-only hosts.",
+      imds2_pages, G_N_ELEMENTS(imds2_pages) },
+    { "11_user_data", S("11_user_data.sh"),
+      "User Data", "Pull EC2 user-data and instance identity documents.",
+      userdata_pages, G_N_ELEMENTS(userdata_pages) },
+    { "12_lambda_dump", S("12_lambda_dump.sh"),
+      "Lambda Dump", "List functions, dump code, read environment variables.",
+      lambda_pages, G_N_ELEMENTS(lambda_pages) },
     { "13_serverless_recon", S("13_serverless_recon.sh"),
-      "Serverless Recon", "Enumerate cloud functions and their URLs.",
-      serverless_verbs,   G_N_ELEMENTS(serverless_verbs) },
+      "Serverless Recon", "Enumerate and invoke functions across providers.",
+      serverless_pages, G_N_ELEMENTS(serverless_pages) },
     { "14_registry_recon", S("14_registry_recon.sh"),
-      "Registry Recon",   "List container registries, images and tags.",
-      registry_verbs,     G_N_ELEMENTS(registry_verbs) },
+      "Registry Recon", "Enumerate container registries and marketplaces.",
+      registry_pages, G_N_ELEMENTS(registry_pages) },
     { "15_container_escape", S("15_container_escape.sh"),
-      "Container Escape", "Detect misconfigurations that allow escape.",
-      escape_verbs,       G_N_ELEMENTS(escape_verbs) },
+      "Container Escape", "Detect escape primitives in the current container.",
+      escape_pages, G_N_ELEMENTS(escape_pages) },
     { "16_k8s_attack_surface", S("16_k8s_attack_surface.sh"),
-      "K8s Surface",      "Map clusters, nodes, pods and RBAC.",
-      k8ssurf_verbs,      G_N_ELEMENTS(k8ssurf_verbs) },
+      "K8s Surface", "Enumerate clusters, workloads and RBAC reach.",
+      k8ssurf_pages, G_N_ELEMENTS(k8ssurf_pages) },
     { "17_k8s_secrets", S("17_k8s_secrets.sh"),
-      "K8s Secrets",      "Extract and decode Kubernetes secrets.",
-      k8ssec_verbs,       G_N_ELEMENTS(k8ssec_verbs) },
+      "K8s Secrets", "Extract and decode Kubernetes secrets.",
+      k8ssec_pages, G_N_ELEMENTS(k8ssec_pages) },
 };
 
 static const ModuleSpec *
@@ -1399,33 +1837,32 @@ module_spec_for(const char *id)
     return NULL;
 }
 
+
 /* ==================================================================== */
 /*  Module page composition                                              */
 /* ==================================================================== */
 
-static GtkWidget *generic_build_overview(AppState *, gpointer);
-static GtkWidget *generic_build_actions(AppState *, gpointer);
-static GtkWidget *generic_build_output(AppState *, gpointer);
-
-/* Submenu entry for module navigation panes. */
+/* Submenu entry for module navigation panes: one per PageSpec of the module,
+   each carrying the spec the page builder renders. */
 typedef struct {
     const char *name;
     const char *icon;
-    GtkWidget *(*build_page)(AppState *, gpointer);
+    const PageSpec *page;
 } ModuleSubmenuEntry;
 
 static ModuleSubmenuEntry *
 build_entries_for(const ModuleSpec *spec, int *out_count)
 {
-    static ModuleSubmenuEntry entries[3];
-    entries[0].name = "Overview"; entries[0].icon = "dialog-information-symbolic";
-    entries[0].build_page = generic_build_overview;
-    entries[1].name = "Actions";  entries[1].icon = "system-run-symbolic";
-    entries[1].build_page = generic_build_actions;
-    entries[2].name = "Output";   entries[2].icon = "utilities-terminal-symbolic";
-    entries[2].build_page = generic_build_output;
-    *out_count = 3;
-    (void) spec;
+    ModuleSubmenuEntry *entries = g_new0(ModuleSubmenuEntry, 8);
+    int n = 0;
+
+    for (int i = 0; i < spec->n_pages && n < 8; i++) {
+        entries[n].name = spec->pages[i].name;
+        entries[n].icon = spec->pages[i].icon;
+        entries[n].page = &spec->pages[i];
+        n++;
+    }
+    *out_count = n;
     return entries;
 }
 
@@ -1654,7 +2091,8 @@ create_module_page(AppState *state, const ModuleDefinition *module,
 
         g_object_set_data_full(G_OBJECT(row), "page",
             gtk_stack_add_titled(GTK_STACK(stack),
-                                 entries[i].build_page(state, module_data),
+                                 build_module_view(state, module_data,
+                                                   entries[i].page),
                                  entries[i].name, entries[i].name),
             NULL);
         g_object_set_data(G_OBJECT(row), "stack", stack);
@@ -2909,7 +3347,8 @@ activate(GtkApplication *app, gpointer user_data)
                      G_CALLBACK(window_close_request), state);
 
     append_event(state, "Native cloudsting GUI initialised");
-    append_event(state, "Loaded 13 module definitions");
+    append_event(state, g_strdup_printf("Loaded %d module definitions",
+                                        (int) G_N_ELEMENTS(modules)));
 
     install_shortcuts(state);
     show_splash(state);
