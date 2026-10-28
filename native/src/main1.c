@@ -230,6 +230,9 @@ static const ModuleDefinition module_fallback[] = {
     { "67_token_refresh", "Token Refresh", "WEBAPI",
       "emblem-synchronizing-symbolic",
       "The token that outlives the logout" },
+    { "78_replay_nonce", "Replay & Nonce", "WEBAPI",
+      "view-refresh-symbolic",
+      "The request that still works the second time" },
     { "66_webhook_sig", "Webhook Signature", "WEBAPI",
       "mail-signed-symbolic",
       "The signature nobody checked" },
@@ -2612,6 +2615,26 @@ static const PageSpec tokenrefresh_pages[] = {
       "|--help:Usage", "67_token_refresh.sh" },
 };
 
+/* 78_replay_nonce */
+static const PageSpec replay_pages[] = {
+    { "Overview", "dialog-information-symbolic", "78_replay_nonce.sh" },
+    { "Replay", "view-refresh-symbolic",
+      "#SEND IT AGAIN"
+      "|~--probe:One request, then the same one"
+      "|~--check:Every replay vector that needs no concurrency"
+      "|~--replay:The same signed request n times", "78_replay_nonce.sh" },
+    { "Nonce", "dialog-password-symbolic",
+      "#IS THE NONCE CONSUMED"
+      "|~--nonce:Same nonce twice, then fresh ones"
+      "|~--timestamp:An hour ago, now, an hour ahead", "78_replay_nonce.sh" },
+    { "Idempotency", "object-select-symbolic",
+      "#THE Idempotency-Key CONTRACT"
+      "|~--idempotency:Same key same body, then same key new body"
+      "|--list:Which headers carry a nonce", "78_replay_nonce.sh" },
+    { "Reference", "help-about-symbolic",
+      "|--vectors:Every failure mode|--help:Usage", "78_replay_nonce.sh" },
+};
+
 /* 44_jwt */
 static const PageSpec jwt_pages[] = {
     { "Overview", "dialog-information-symbolic", "44_jwt.sh" },
@@ -2997,6 +3020,9 @@ static const ModuleSpec module_specs[] = {
     { "67_token_refresh", S("67_token_refresh.sh"),
       "Token Refresh", "The token that outlives the logout — rotation, replay and revocation, measured.",
       tokenrefresh_pages, G_N_ELEMENTS(tokenrefresh_pages) },
+    { "78_replay_nonce", S("78_replay_nonce.sh"),
+      "Replay & Nonce", "The request that still works the second time — check-then-act and the missing nonce store.",
+      replay_pages, G_N_ELEMENTS(replay_pages) },
     { "66_webhook_sig", S("66_webhook_sig.sh"),
       "Webhook Signature", "A signature nobody checked — control first, then every receiver mistake.",
       websig_pages, G_N_ELEMENTS(websig_pages) },

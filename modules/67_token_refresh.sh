@@ -140,7 +140,7 @@ tr_post() {
     [[ -z "$code" ]] && code="000"
     local bytes hash
     bytes="$(wc -c < "$outf" 2>/dev/null | tr -d ' ')"
-    hash="$(cs_fingerprint "$outf")"
+    hash="$(sha1sum "$outf" 2>/dev/null | cut -c1-12)"
     printf '%s\037%s\037%s\037%s\n' "$code" "${bytes:-0}" "$hash" "$outf"
 }
 

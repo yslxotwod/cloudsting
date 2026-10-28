@@ -85,3 +85,9 @@ module 66 --check $TARGET
 # "did logout return 200" but "does the artifact still work afterwards"
 module 67 --grants
 module 67 --vectors
+
+# a signed request is only a defence if the server remembers it; the nonce
+# store is consulted before the side effect and written after, and the window
+# between those two lines is the whole bug
+module 78 --vectors
+module 78 --list

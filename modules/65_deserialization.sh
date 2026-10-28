@@ -310,7 +310,7 @@ ds_cmd_check() {
     local c_code c_secs c_body
     cs_split "$(ds_control "$url")" c_code c_secs c_body
     cs_row CONTROL "code=$c_code" "seconds=$c_secs"
-    local c_ctl_hash; c_ctl_hash="$(cs_fingerprint "$c_body")"
+    local c_ctl_hash; c_ctl_hash="$(sha1sum "$c_body" 2>/dev/null | cut -c1-12)"
     rm -f "$c_body"
 
     local tried=0 hits=0

@@ -336,7 +336,7 @@ pg_cmd_cursor() {
     # the first page, to have something to compare against
     local f_code f_bytes f_rows f_total f_body
     cs_split "$(pg_fetch "$url")" f_code f_bytes f_rows f_total f_body
-    local first_hash; first_hash="$(cs_fingerprint "$f_body")"
+    local first_hash; first_hash="$(sha1sum "$f_body" 2>/dev/null | cut -c1-12)"
     cs_row FIRST "code=$f_code" "rows=$f_rows" "total=${f_total:-none}"
     rm -f "$f_body"
 
@@ -347,7 +347,7 @@ pg_cmd_cursor() {
         tried=$((tried + 1))
         local code bytes rows total bodyf
         cs_split "$(pg_fetch "$(pg_with "$url" "$param" "$token")")" code bytes rows total bodyf
-        local h; h="$(cs_fingerprint "$bodyf")"
+        local h; h="$(sha1sum "$bodyf" 2>/dev/null | cut -c1-12)"
         local v; v="$(pg_cursor_verdict "$first_hash" "$h" "$rows" "$total")"
         rm -f "$bodyf"
 
@@ -424,7 +424,7 @@ pg_cmd_walk() {
         local u; u="$(pg_with "$url" "$param" "$i")"
         local code bytes rows total bodyf
         cs_split "$(pg_fetch "$u")" code bytes rows total bodyf
-        local h; h="$(cs_fingerprint "$bodyf")"
+        local h; h="$(sha1sum "$bodyf" 2>/dev/null | cut -c1-12)"
         local cls; cls="$(pg_class "$bodyf")"
         rm -f "$bodyf"
 
