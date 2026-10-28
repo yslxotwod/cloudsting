@@ -32,3 +32,8 @@ module 53 --payloads
 # smuggling is a parser question: the table names every pair that can disagree
 module 59 --techniques
 module 59 --framing
+
+# and the browser is the one willing client: if the origin is echoed with
+# credentials, a page on that origin reads the session for free
+module 61 --origins
+module 61 --origins $TARGET

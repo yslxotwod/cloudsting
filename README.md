@@ -413,6 +413,7 @@ standalone, carries its own `--selftest`, and writes TSV.
 | `53_injection` | A value the interpreter reads as code — SQL, NoSQL, command, template, LDAP and XPath | 64 checks |
 | `54_ssrf` | Makes a server fetch metadata, loopback or a local file, and proves it by content | 43 checks |
 | `59_smuggling` | The front end and the back end disagree about how much of the stream is this request | 45 checks |
+| `61_cors` | Origin reflection, null origin and regex bypass — with the cookie riding along | 52 checks |
 | `62_version_bypass` | The old version answers while the new one is locked | 38 checks |
 | `64_file_upload` | Walks the extension and content-type matrix an upload filter forgets | 53 checks |
 
@@ -479,6 +480,8 @@ Each module's own `--help` is the authority; this is the map.
                      --selftest --status-tsv --sweep --targets --vendors
 59_smuggling         --clcl --clte --desync --downgrade --framing --h2cl --h2te --help --list
                      --menu --probe --selftest --status-tsv --te --teobfusc --techniques
+61_cors              --check --creds --headers --help --list --menu --methods --null --origins
+                     --poc --regex --selftest --status-tsv --suffix
 62_version_bypass    --compare --headers --help --list --matrix --menu --normalise --probe
                      --selftest --status-tsv --sweep --versions
 64_file_upload       --check --endpoints --extensions --help --list --magic --menu --name

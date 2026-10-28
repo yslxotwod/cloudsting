@@ -2506,6 +2506,24 @@ static const PageSpec smuggle_pages[] = {
       NULL, "59_smuggling.sh" },
 };
 
+/* 61_cors — the browser sends the cookie; the origin check is the guard */
+static const PageSpec cors_pages[] = {
+    { "Overview", "dialog-information-symbolic", NULL, "61_cors.sh" },
+    { "Check", "document-open-recent-symbolic",
+      "#ONE ENDPOINT|~~--check:Every origin family against a url"
+      "|#FAMILIES|~~--null:The sandboxed-iframe origin"
+      "|~~~--suffix:Substring comparisons against the registered host"
+      "|~~~--regex:An allowlist that forgot to anchor", NULL, "61_cors.sh" },
+    { "Credentials", "dialog-password-symbolic",
+      "#THE COOKIE|~~--creds:Read and write, with credentials"
+      "|~~--methods:Which verbs the preflight advertises"
+      "|~~--headers:Which headers the page may read", NULL, "61_cors.sh" },
+    { "Proof", "dialog-warning-symbolic",
+      "#THE HTML|~~--poc:Write the page that would steal the data"
+      "|#REFERENCE|~--origins:The origin family table|--list:Header table",
+      NULL, "61_cors.sh" },
+};
+
 /* 62_version_bypass */
 static const PageSpec version_pages[] = {
     { "Overview", "dialog-information-symbolic", NULL, "62_version_bypass.sh" },
@@ -2670,6 +2688,10 @@ static const ModuleSpec module_specs[] = {
       "Request Smuggling",
       "The front end and the back end disagree about how much of the stream is this request.",
       smuggle_pages, G_N_ELEMENTS(smuggle_pages) },
+    { "61_cors", S("61_cors.sh"),
+      "CORS Abuse",
+      "Origin reflection, null origin and regex bypass — with the cookie riding along.",
+      cors_pages, G_N_ELEMENTS(cors_pages) },
     { "62_version_bypass", S("62_version_bypass.sh"),
       "Versioning Bypass", "The old version answers while the new one is locked.",
       version_pages, G_N_ELEMENTS(version_pages) },
