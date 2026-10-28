@@ -31,6 +31,7 @@ id	category	phase	title	mission
 52	WEBAPI	8	Rate Limit Bypass	Forwarding-header rotation against a limit that trusts the header
 53	WEBAPI	8	API Injection	A value the interpreter reads as code — SQL, NoSQL, command, template, LDAP and XPath
 54	WEBAPI	7	SSRF Tester	Makes a server fetch metadata, loopback or a local file, and proves it by content
+59	WEBAPI	8	Request Smuggling	The front end and the back end disagree about how much of the stream is this request
 62	WEBAPI	8	API Versioning Bypass	The old version answers while the new one is locked
 64	WEBAPI	8	File Upload Exploit	Walks the extension and content-type matrix an upload filter forgets
 76	SURFACE	1	Debug Endpoint Discovery	Health, actuator, docs and env endpoints that answer when they should not

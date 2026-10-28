@@ -2486,6 +2486,26 @@ static const PageSpec ssrf_pages[] = {
       "|~~--save:Keep one body", NULL, "54_ssrf.sh" },
 };
 
+/* 59_smuggling — where the front end and the back end stop agreeing */
+static const PageSpec smuggle_pages[] = {
+    { "Overview", "dialog-information-symbolic", NULL, "59_smuggling.sh" },
+    { "Sweep", "dialog-warning-symbolic",
+      "#ONE HOST|~~--probe:Every framing pair against one request"
+      "|#SINGLE TECHNIQUE|~~--clte:Content-Length vs Transfer-Encoding"
+      "|~~--te:Transfer-Encoding first"
+      "|~~--clcl:Two Content-Length values", NULL, "59_smuggling.sh" },
+    { "HTTP/2", "network-server-symbolic",
+      "#DOWNGRADE|~~--h2cl:Is Content-Length legal upstream"
+      "|~~--h2te:A smuggled Transfer-Encoding"
+      "|~~--downgrade:What the edge advertises", NULL, "59_smuggling.sh" },
+    { "Timing", "document-open-recent-symbolic",
+      "#THE WAIT|~~--desync:Hold a declared body open"
+      "|#PRIMER|~~--teobfusc:Every obfuscation, listed", NULL, "59_smuggling.sh" },
+    { "Reference", "dialog-information-symbolic",
+      "#TABLES|--techniques:What disagrees and what it wins|--framing:The raw header pairs",
+      NULL, "59_smuggling.sh" },
+};
+
 /* 62_version_bypass */
 static const PageSpec version_pages[] = {
     { "Overview", "dialog-information-symbolic", NULL, "62_version_bypass.sh" },
@@ -2646,6 +2666,10 @@ static const ModuleSpec module_specs[] = {
     { "54_ssrf", S("54_ssrf.sh"),
       "SSRF Tester", "Make a server fetch metadata, loopback or a local file, and prove it by content.",
       ssrf_pages, G_N_ELEMENTS(ssrf_pages) },
+    { "59_smuggling", S("59_smuggling.sh"),
+      "Request Smuggling",
+      "The front end and the back end disagree about how much of the stream is this request.",
+      smuggle_pages, G_N_ELEMENTS(smuggle_pages) },
     { "62_version_bypass", S("62_version_bypass.sh"),
       "Versioning Bypass", "The old version answers while the new one is locked.",
       version_pages, G_N_ELEMENTS(version_pages) },

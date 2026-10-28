@@ -28,3 +28,7 @@ module 51 --params
 # let the families argue
 module 53 --families
 module 53 --payloads
+
+# smuggling is a parser question: the table names every pair that can disagree
+module 59 --techniques
+module 59 --framing
