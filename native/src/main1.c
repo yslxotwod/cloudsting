@@ -152,6 +152,9 @@ static const ModuleDefinition module_fallback[] = {
     { "27_rebinding",     "DNS Rebinding",   "DNS",
       "network-workgroup-symbolic",
       "A name that resolves twice" },
+    { "58_sse",           "Server-Sent Events", "WEBAPI",
+      "document-open-recent-symbolic",
+      "A stream nobody authenticated, judged per event" },
     { "39_tenant_enum",   "Tenant Enum",     "DNS",
       "network-workgroup-symbolic",
       "Tenant id, cert transparency and reverse-DNS per ASN" },
@@ -2450,6 +2453,24 @@ static const PageSpec websocket_pages[] = {
       "|--payloads:The payload table", "57_websocket.sh" },
 };
 
+/* 58_sse */
+static const PageSpec sse_pages[] = {
+    { "Overview", "dialog-information-symbolic", "58_sse.sh" },
+    { "Streams", "document-open-recent-symbolic",
+      "#IS THERE A STREAM HERE"
+      "|~--probe:Which path pushes without a credential"
+      "|~--auth:With and without a cookie"
+      "|--paths:The path table", "58_sse.sh" },
+    { "Browser", "web-browser-symbolic",
+      "#CAN A PAGE READ IT"
+      "|~--cors:EventSource from a foreign origin"
+      "|~--inject:Write into the stream every reader sees", "58_sse.sh" },
+    { "Content", "document-open-symbolic",
+      "#WHAT CAME DOWN IT"
+      "|~--sample:Read the stream and print the events"
+      "|--events:The event grammar", "58_sse.sh" },
+};
+
 /* 27_rebinding */
 static const PageSpec rebind_pages[] = {
     { "Overview", "dialog-information-symbolic", "27_rebinding.sh" },
@@ -2781,6 +2802,9 @@ static const ModuleSpec module_specs[] = {
     { "43_graphql", S("43_graphql.sh"),
       "GraphQL Introspection", "A schema the server never meant to hand out.",
       graphql_pages, G_N_ELEMENTS(graphql_pages) },
+    { "58_sse", S("58_sse.sh"), "Server-Sent Events",
+      "A stream nobody authenticated, judged per event",
+      sse_pages, G_N_ELEMENTS(sse_pages) },
     { "27_rebinding", S("27_rebinding.sh"), "DNS Rebinding",
       "A name that resolves twice — the validator reads the name, the fetcher talks to the address",
       rebind_pages, G_N_ELEMENTS(rebind_pages) },

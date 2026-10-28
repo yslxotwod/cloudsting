@@ -33,6 +33,7 @@
 54	WEBAPI	7	SSRF Tester	Makes a server fetch metadata, loopback or a local file, and proves it by content
 56	WEBAPI	6	gRPC / Protobuf Attack	Reflection, method auth and field confusion — the protobuf framing itself
 57	WEBAPI	6	WebSocket Attack	Handshake auth, per-message auth and CSWSH — the origin check is the whole guard
+58	WEBAPI	6	Server-Sent Events	A stream nobody authenticated, judged per event
 59	WEBAPI	8	Request Smuggling	The front end and the back end disagree about how much of the stream is this request
 61	WEBAPI	8	CORS Abuse	The browser sends the cookie for you; the origin check is the whole guard
 62	WEBAPI	8	API Versioning Bypass	The old version answers while the new one is locked

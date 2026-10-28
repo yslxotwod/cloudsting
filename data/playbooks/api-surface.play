@@ -57,3 +57,7 @@ module 56 --payloads
 # fetcher that talks to the address — two different lookups, one attack
 module 27 --targets
 module 27 --addresses
+
+# a stream is one response that never ends, so nothing that reads a code and a
+# header block ever sees what came down it
+module 58 --paths
