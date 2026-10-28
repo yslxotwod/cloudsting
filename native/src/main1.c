@@ -227,6 +227,9 @@ static const ModuleDefinition module_fallback[] = {
     { "57_websocket",     "WebSocket",     "WEBAPI",
       "network-wired-symbolic",
       "Handshake auth, message auth and cross-site hijacking" },
+    { "66_webhook_sig", "Webhook Signature", "WEBAPI",
+      "mail-signed-symbolic",
+      "The signature nobody checked" },
     { "65_deserialization", "Deserialization", "WEBAPI",
       "application-x-executable-symbolic",
       "A payload that is a data structure, and a server that rebuilds it" },
@@ -2561,6 +2564,28 @@ static const PageSpec deser_pages[] = {
       "|--help:Usage", "65_deserialization.sh" },
 };
 
+/* 66_webhook_sig */
+static const PageSpec websig_pages[] = {
+    { "Overview", "dialog-information-symbolic", "66_webhook_sig.sh" },
+    { "Control", "dialog-password-symbolic",
+      "#IS THIS A SIGNED ENDPOINT"
+      "|~--probe:One valid signature — if that is refused, stop"
+      "|--schemes:Every scheme, its header and its algorithm", "66_webhook_sig.sh" },
+    { "Bypass", "dialog-warning-symbolic",
+      "#WHAT THE RECEIVER FORGETS"
+      "|~--check:The control, then every vector"
+      "|~--replay:The same signed request, twice"
+      "|~--confusion:Public key as secret, alg=none", "66_webhook_sig.sh" },
+    { "Window", "alarm-symbolic",
+      "#DOES THE TIMESTAMP MEAN ANYTHING"
+      "|~--window:An hour ago, and an hour ahead"
+      "|--vectors:What each vector is looking for", "66_webhook_sig.sh" },
+    { "Reference", "help-about-symbolic",
+      "|--list:Every bypass"
+      "|--status-tsv:Module status"
+      "|--help:Usage", "66_webhook_sig.sh" },
+};
+
 /* 44_jwt */
 static const PageSpec jwt_pages[] = {
     { "Overview", "dialog-information-symbolic", "44_jwt.sh" },
@@ -2943,6 +2968,9 @@ static const ModuleSpec module_specs[] = {
     { "64_file_upload", S("64_file_upload.sh"),
       "File Upload", "The extension and content-type matrix an upload filter forgets.",
       upload_pages, G_N_ELEMENTS(upload_pages) },
+    { "66_webhook_sig", S("66_webhook_sig.sh"),
+      "Webhook Signature", "A signature nobody checked — control first, then every receiver mistake.",
+      websig_pages, G_N_ELEMENTS(websig_pages) },
     { "65_deserialization", S("65_deserialization.sh"),
       "Deserialization", "The object the server rebuilt — a payload that is a data structure, not a string.",
       deser_pages, G_N_ELEMENTS(deser_pages) },

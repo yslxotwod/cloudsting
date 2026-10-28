@@ -75,3 +75,8 @@ module 63 --verdicts
 # have refused — the control carries a body of the format it claimed to want
 module 65 --formats
 module 65 --scan $TARGET
+
+# a webhook that accepts a request it should have refused is the whole finding;
+# the control proves the endpoint is signed before anything else is read
+module 66 --schemes
+module 66 --check $TARGET
