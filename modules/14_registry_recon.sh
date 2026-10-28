@@ -4,33 +4,36 @@
 set -u
 umask 077
 
-_SH_SRC="${BASH_SOURCE[0]}"
-while [ -L "$_SH_SRC" ]; do
-    _SH_DIR="$(cd -- "$(dirname -- "$_SH_SRC")" && pwd)"
-    _SH_SRC="$(readlink -- "$_SH_SRC")"
-    [[ "$_SH_SRC" != /* ]] && _SH_SRC="$_SH_DIR/$_SH_SRC"
-done
-CLOUDSTING_ROOT="$(cd -- "$(dirname -- "$_SH_SRC")/.." && pwd)"
-MOD_DIR="$(dirname -- "$_SH_SRC")"
+# Everything below the header depends on the root, and the root is
+# derived from this file only after it is sourced. Clear any inherited
+# value first: a caller that itself sources the core would otherwise
+# hand this module *its* directory, and the module would read its own
+# name as a path.
+unset CS_MOD_DIR
+
+# The shared core owns the root, the loot tree, the run id, the TSV
+# writer, the three-state provider gate, redaction and the selftest
+# ledger. Sourcing it is what keeps loot under <root>/loot instead of
+# $HOME/loot, so the launcher and the findings store can see a run.
 MODULE_ID="14_registry_recon"
 MOD_NAME="Container Registry Reconnaissance"
 MOD_VERSION="0.9.0"
-export CLOUDSTING_ROOT MOD_DIR MOD_NAME
+# shellcheck source=../data/lib/core.sh
+source "$(dirname "${BASH_SOURCE[0]}")/../data/lib/core.sh"
 
-_HOMEP="$(dirname -- "$CLOUDSTING_ROOT")"
-[ -d "$_HOMEP" ] && HOME="$_HOMEP"
-export HOME
-
-RUN_ID="$(date '+%Y%m%d-%H%M%S')-$$"
-export RR_RUN_ID="$RUN_ID"
-: "${TMP_DIR:=/tmp/cloudsting}"
-: "${LOOT_DIR:=$HOME/loot/cloudsting}"
-: "${STATE_DIR:=$TMP_DIR/state}"
-OUT_DIR="$LOOT_DIR/registry_recon"
-mkdir -p "$TMP_DIR" "$OUT_DIR" "$STATE_DIR" 2>/dev/null || true
-
+# tunables this module reads with a default (kept from its own header)
 : "${RR_TIMEOUT:=10}"
 
+# Back-compat: run-id variable for this module, from the core run id
+# the one run id the core minted.
+RR_RUN_ID="$CS_RUN_ID"
+export RR_RUN_ID
+RUN_ID="$CS_RUN_ID"
+export RUN_ID
+
+# Loot directory for this module: <root>/loot/registry_recon/
+OUT_DIR="$CS_LOOT/registry_recon"
+mkdir -p "$OUT_DIR" 2>/dev/null || true
 rr_log() { printf '[%s] %s\n' "$MODULE_ID" "$*" >&2; }
 
 # ── Provider gates ───────────────────────────────────────────────
@@ -142,13 +145,15 @@ rr_cmd_tags() { rr_cmd_images "$@"; }
 
 # ── Verb dispatchers ─────────────────────────────────────────────
 rr_cmd_list() {
-    local out
+    local out n=0
     out="$(rr_list_aws 2>/dev/null)"
-    [ -n "$out" ] && printf '%s\n' "$out"
+    if [ -n "$out" ]; then printf '%s\n' "$out"; n=$((n + 1)); fi
     out="$(rr_list_gcp 2>/dev/null)"
-    [ -n "$out" ] && printf '%s\n' "$out"
+    if [ -n "$out" ]; then printf '%s\n' "$out"; n=$((n + 1)); fi
     out="$(rr_list_az 2>/dev/null)"
-    [ -n "$out" ] && printf '%s\n' "$out"
+    if [ -n "$out" ]; then printf '%s\n' "$out"; n=$((n + 1)); fi
+    printf 'SUMMARY\tproviders-with-repos=%s\n' "$n"
+    return 0
 }
 rr_cmd_scan() {
     rr_log "indexing repositories..."
@@ -184,10 +189,11 @@ rr_selftest() {
         if [ "$got" = "$want" ]; then pass=$((pass+1)); printf 'ok\t%s\n' "$n"
         else fail=$((fail+1)); printf 'FAIL\t%s want=%s got=%s\n' "$n" "$want" "$got"; fi; }
 
-    # --list with no creds = empty but no crash
-    local list_out
-    list_out="$(rr_cmd_list 2>/dev/null)"
-    chk list-no-crash "${list_out:-ok}" "ok"
+    # --list with no creds = a clean zero, not a crash
+    local list_out list_rc
+    list_out="$(rr_cmd_list 2>/dev/null)"; list_rc=$?
+    chk list-no-crash "$list_rc" "0"
+    chk list-summary  "$(printf '%s' "$list_out" | awk -F'\t' '$1=="SUMMARY"{print $2}' | grep -c .)" "1"
 
     # --images with no args = error
     local img_out

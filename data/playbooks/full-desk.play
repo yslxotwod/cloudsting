@@ -1,0 +1,23 @@
+#desc: Everything the box can do with what it currently has
+# Deliberately wide: every module's own gate decides whether it can act, so a
+# run without credentials still produces an honest map of what is missing.
+module 00 --preflight
+module 01 --status-tsv
+module 02 --run
+module 03 --enum
+module 06 --scan
+module 05 --map
+module 07 --list
+module 09 --probe
+module 12 --all
+module 14 --scan
+module 15 --all
+module 16 --all
+module 16 --secrets
+module 18 --all
+module 18 --map
+module 18 --audit
+module 21 --instances
+module 22 --posture
+module 23 --footholds
+continue

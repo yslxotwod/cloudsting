@@ -1,0 +1,114 @@
+#!/usr/bin/env bash
+# bin/cloudsting-tui — a terminal view over the same modules
+#
+# The GUI needs a display; a bench under SSH does not have one. This draws the
+# module table in the terminal, runs the selected module, and streams its
+# output as it arrives — the same live feed the GUI page shows.
+#
+# No curses dependency: every screen is redrawn with plain escapes and the
+# run feed is a straight tail of the process's own file descriptors.
+set -Eeuo pipefail
+
+self="${BASH_SOURCE[0]}"
+while [[ -L "$self" ]]; do
+    dir="$(cd -P "$(dirname "$self")" && pwd)"
+    self="$(readlink "$self")"
+    [[ "$self" != /* ]] && self="$dir/$self"
+done
+root="$(cd -P "$(dirname "$self")/.." && pwd)"
+cs="$root/cloudsting.sh"
+
+command -v "$cs" >/dev/null 2>&1 || [[ -x "$cs" ]] || { printf 'cloudsting-tui: launcher missing\n' >&2; exit 3; }
+
+if [[ -t 1 && -z "${NO_COLOR:-}" ]]; then
+    C_RST=$'\033[0m'; C_BLD=$'\033[1m'; C_DIM=$'\033[2m'
+    C_CYN=$'\033[36m'; C_GRN=$'\033[32m'; C_YEL=$'\033[33m'; C_RED=$'\033[31m'
+else
+    C_RST=''; C_BLD=''; C_DIM=''; C_CYN=''; C_GRN=''; C_YEL=''; C_RED=''
+fi
+
+tui_header() {
+    local ver; ver="$("$cs" version | awk '{print $2}')"
+    printf '\033[2J\033[H'
+    printf '%scloudsting %s%s  %s%s%s\n' "$C_BLD" "$ver" "$C_RST" "$C_DIM" "$root" "$C_RST"
+    printf '%s\n\n' "$(printf '─%.0s' {1..72})"
+}
+
+tui_modules() {
+    printf '%s%s%s\n' "$C_CYN" "MODULES" "$C_RST"
+    "$cs" list | while IFS=$'\t' read -r id slug title cat; do
+        printf '  %s%s%s  %-26s %s%s%s\n' "$C_YEL" "$id" "$C_RST" "$slug" "$C_DIM" "$cat" "$C_RST"
+    done
+    printf '\n'
+}
+
+tui_help() {
+    printf '%skeys%s  <nn|slug> run · i <ref> info · l loot · s selftest · q quit\n\n' "$C_DIM" "$C_RST"
+}
+
+tui_info() {
+    local ref="$1"
+    "$cs" info "$ref" | while IFS=$'\t' read -r k v; do
+        printf '  %s%-12s%s %s\n' "$C_DIM" "$k" "$C_RST" "$v"
+    done
+    printf '\n'
+}
+
+# Stream a module's two pipes as they arrive. Two background readers, one
+# per descriptor, each line prefixed so the operator can tell them apart.
+tui_run() {
+    local ref="$1"; shift
+    local out="$root/tmp/tui-$ref-$$.out" err="$root/tmp/tui-$ref-$$.err"
+    mkdir -p "$root/tmp"
+    : > "$out"; : > "$err"
+
+    printf '\n%s$ cloudsting run %s %s%s\n\n' "$C_BLD" "$ref" "$*" "$C_RST"
+
+    "$cs" run "$ref" "$@" >"$out" 2>"$err" &
+    local pid=$!
+
+    tail -n +1 -f "$out" 2>/dev/null | while IFS= read -r line; do printf '%s\n' "$line"; done &
+    local t1=$!
+    tail -n +1 -f "$err" 2>/dev/null | while IFS= read -r line; do printf '%s%s%s\n' "$C_RED" "$line" "$C_RST"; done &
+    local t2=$!
+
+    wait "$pid"; local rc=$?
+    sleep 0.2
+    kill "$t1" "$t2" 2>/dev/null || true
+    wait "$t1" "$t2" 2>/dev/null || true
+
+    printf '\n%sexit %s%s\n\n' "$( (( rc == 0 )) && printf '%s' "$C_GRN" || printf '%s' "$C_RED")" "$rc" "$C_RST"
+    rm -f "$out" "$err"
+    return "$rc"
+}
+
+tui_main() {
+    if ! tty -s 2>/dev/null; then
+        # piped or redirected: no menu, just list
+        "$cs" menu
+        return 0
+    fi
+
+    while true; do
+        tui_header
+        tui_modules
+        tui_help
+        printf '%s>%s ' "$C_BLD" "$C_RST"
+        IFS= read -r line || break
+        [[ -z "${line// }" ]] && continue
+        set -- $line
+        case "${1:-}" in
+            q|quit|exit) break ;;
+            i|info) shift; tui_info "${1:-}"; read -r -p "${C_DIM}enter…${C_RST}" _ ;;
+            l|loot) "$cs" loot "${2:-}"; read -r -p "${C_DIM}enter…${C_RST}" _ ;;
+            s|selftest) "$cs" selftest "${2:-all}"; read -r -p "${C_DIM}enter…${C_RST}" _ ;;
+            h|help) "$cs" help; read -r -p "${C_DIM}enter…${C_RST}" _ ;;
+            p|playbook) "$cs" playbook "${2:-}"; read -r -p "${C_DIM}enter…${C_RST}" _ ;;
+            *) local ref="$1"; shift || true; tui_run "$ref" "$@"
+               read -r -p "${C_DIM}enter…${C_RST}" _ ;;
+        esac
+    done
+    printf '\033[2J\033[H'
+}
+
+tui_main

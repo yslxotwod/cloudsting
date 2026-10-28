@@ -4,31 +4,33 @@
 set -u
 umask 077
 
-_SH_SRC="${BASH_SOURCE[0]}"
-while [ -L "$_SH_SRC" ]; do
-    _SH_DIR="$(cd -- "$(dirname -- "$_SH_SRC")" && pwd)"
-    _SH_SRC="$(readlink -- "$_SH_SRC")"
-    [[ "$_SH_SRC" != /* ]] && _SH_SRC="$_SH_DIR/$_SH_SRC"
-done
-CLOUDSTING_ROOT="$(cd -- "$(dirname -- "$_SH_SRC")/.." && pwd)"
-MOD_DIR="$(dirname -- "$_SH_SRC")"
+# Everything below the header depends on the root, and the root is
+# derived from this file only after it is sourced. Clear any inherited
+# value first: a caller that itself sources the core would otherwise
+# hand this module *its* directory, and the module would read its own
+# name as a path.
+unset CS_MOD_DIR
+
+# The shared core owns the root, the loot tree, the run id, the TSV
+# writer, the three-state provider gate, redaction and the selftest
+# ledger. Sourcing it is what keeps loot under <root>/loot instead of
+# $HOME/loot, so the launcher and the findings store can see a run.
 MODULE_ID="15_container_escape"
 MOD_NAME="Container Escape Detection"
 MOD_VERSION="0.10.0"
-export CLOUDSTING_ROOT MOD_DIR MOD_NAME
+# shellcheck source=../data/lib/core.sh
+source "$(dirname "${BASH_SOURCE[0]}")/../data/lib/core.sh"
 
-_HOMEP="$(dirname -- "$CLOUDSTING_ROOT")"
-[ -d "$_HOMEP" ] && HOME="$_HOMEP"
-export HOME
+# Back-compat: run-id variable for this module, from the core run id
+# the one run id the core minted.
+CE_RUN_ID="$CS_RUN_ID"
+export CE_RUN_ID
+RUN_ID="$CS_RUN_ID"
+export RUN_ID
 
-RUN_ID="$(date '+%Y%m%d-%H%M%S')-$$"
-export CE_RUN_ID="$RUN_ID"
-: "${TMP_DIR:=/tmp/cloudsting}"
-: "${LOOT_DIR:=$HOME/loot/cloudsting}"
-: "${STATE_DIR:=$TMP_DIR/state}"
-OUT_DIR="$LOOT_DIR/container_escape"
-mkdir -p "$TMP_DIR" "$OUT_DIR" "$STATE_DIR" 2>/dev/null || true
-
+# Loot directory for this module: <root>/loot/container_escape/
+OUT_DIR="$CS_LOOT/container_escape"
+mkdir -p "$OUT_DIR" 2>/dev/null || true
 ce_log() { printf '[%s] %s\n' "$MODULE_ID" "$*" >&2; }
 
 # ── Known escape signatures / checklists ─────────────────────────

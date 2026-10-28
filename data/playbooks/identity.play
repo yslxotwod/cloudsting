@@ -1,0 +1,10 @@
+#desc: Who am I, what can I reach, what did I leave behind
+# The credential-first chain: validate what is on the box, then map the account
+# it belongs to, then the escalation paths out of it.
+module 01 --status-tsv
+module 06 --whoami
+module 05 --map
+module 07 --list
+module 22 --posture
+module 23 --footholds
+continue

@@ -1,0 +1,68 @@
+# data/findings.map — how a module row becomes an incident row
+#
+# Columns: <module-glob>  <key-glob>  <value-glob>  <severity>
+# First match wins; `*` is any run of characters. Ordered: put the specific
+# rules above the general ones. Severities: critical high medium low info clean
+#
+# The point is cross-module correlation. A public bucket (03), a wildcard
+# trust (06) and an unlogged API (22) are three rows from three modules that
+# describe one incident — they correlate when their severities agree and
+# their targets match.
+
+# ── anything the modules themselves graded ──────────────────────────
+*	*	CRIT*	critical
+*	*	critical*	critical
+*	*	HIGH*	high
+*	*	high-risk*	high
+*	*	MEDIUM*	medium
+*	*	WARN*	medium
+*	*	LOW*	low
+
+# ── exposure that is readable by the world ──────────────────────────
+03_bucket_enum	*	public-read	critical
+03_bucket_enum	*	exists-private	low
+04_takeover	*	vulnerable	critical
+04_takeover	*	claimable	high
+09_ssrf_imds	*	imds-reachable	critical
+09_ssrf_imds	*	token-issued	high
+10_imdsv2_bypass	*	bypassed	critical
+15_container_escape	*	docker.sock	critical
+15_container_escape	*	cap_sys_admin	critical
+15_container_escape	*	privileged	critical
+16_k8s_attack_surface	*	cluster-admin	critical
+17_k8s_secrets	*	extracted	high
+20_sg_audit	*	0.0.0.0/0	high
+20_sg_audit	22	0.0.0.0/0	critical
+20_sg_audit	3389	0.0.0.0/0	critical
+21_db_exposure	*	publicly-accessible	critical
+21_db_exposure	*	public	high
+21_db_exposure	*	encrypted=false	high
+21_db_exposure	*	backup-retention*	medium
+
+# ── identity and audit ─────────────────────────────────────────────
+05_iam_privesc	*	escalation-path	high
+06_role_chains	*	trust-policy-wildcard	high
+06_role_chains	*	cross-account	medium
+07_policy_audit	*	wildcard-action	high
+07_policy_audit	*	notaction-hole	high
+07_policy_audit	*	privileged-grant	medium
+22_audit_evasion	*	disabled	high
+22_audit_evasion	*	not-enabled	high
+22_audit_evasion	*	not-recording	high
+23_persistence	*	foothold	high
+
+# ── secrets ────────────────────────────────────────────────────────
+08_secrets_scan	*	aws-access-key	critical
+08_secrets_scan	*	private-key	critical
+08_secrets_scan	*	github-token	high
+08_secrets_scan	*	generic-secret	medium
+11_user_data	*	secret-in-user-data	high
+12_lambda_dump	*	env-secret	high
+
+# ── passing controls are clean, not informational ──────────────────
+*	*	no *	clean
+*	*	none	clean
+*	*	not found	clean
+*	*	not-public	clean
+*	*	tool-missing	clean
+*	*	creds-missing	info

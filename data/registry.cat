@@ -1,0 +1,32 @@
+id	category	phase	title	mission
+00	SETUP	0	Dependencies	What this box has, what it is missing, and what is actually authenticated
+01	CREDS	1	Credential Validator	Identify a credential from its shape, validate it offline, probe it live — cloud keys and 23 telco vendor auth oracles
+02	SURFACE	1	Cloud Asset Inventory	Enumerate what the account actually holds across providers
+03	STORAGE	1	Cloud Bucket Enumeration	Storage buckets, their permissions, and their public exposure
+05	IDENTITY	2	IAM Privilege-Escalation Mapper	Known escalation paths out of the current principal
+06	IDENTITY	2	IAM Role Trust & Chain Analyzer	Role trust policies and the chains they permit
+07	IDENTITY	2	IAM Policy Auditor	Wildcard actions, wildcard resources, missing conditions
+08	CREDS	1	Secrets Scanner	Key and token patterns in files, directories and streams
+09	COMPUTE	3	Instance Metadata	SSRF to IMDSv1, IMDSv2 bypass, user-data, and the credentials in them
+12	COMPUTE	3	Serverless Functions	List, dump env, find invoke URLs, pull the code
+14	STORAGE	4	Container Registry Reconnaissance	Registries, repositories, tags, and image layers worth pulling apart
+15	COMPUTE	4	Container Escape Detection	Capabilities, mounts, cgroups and host namespace reachability
+16	COMPUTE	4	Kubernetes	Clusters, RBAC, who can do what, and the secrets behind it
+18	NETWORK	3	Cloud Network & Takeover	DNS, dangling records and claimable subdomains, subnets, routes and firewall exposure
+21	STORAGE	3	Database Exposure	Managed database instances and which of them answer from the world
+22	ATTRITION	3	Audit Evasion	What the provider records, and where the trail has holes
+23	IDENTITY	9	Persistence	Footholds that outlive the session, per provider
+39	DNS	1	Cloud Tenant Enumeration	Tenant ids, bucket namespaces, exposed APIs, certificate transparency and PTR sweeps
+41	SURFACE	1	API Discovery	Endpoints on a host or a spec, with a baseline so a catch-all page yields nothing
+46	SURFACE	1	API Key Harvesting	Key and token patterns in pages, script bundles, headers and specs
+76	SURFACE	1	Debug Endpoint Discovery	Health, actuator, docs and env endpoints that answer when they should not
+48	WEBAPI	5	BOLA	Object-level authorization across subscriber, account and sim ids
+49	WEBAPI	5	BFLA	Function-level authorization across admin, agent and customer verbs
+50	WEBAPI	5	Mass Assignment	Fields the server trusts because the client sent them
+52	WEBAPI	8	Rate Limit Bypass	Forwarding-header rotation against a limit that trusts the header
+42	WEBAPI	6	OpenAPI/Swagger Analyzer	Reads a spec and reports what it admits to: per-operation security, ids, url-taking params
+43	WEBAPI	6	GraphQL Introspection	Probes graph paths and reads a schema the server never meant to hand out
+54	WEBAPI	7	SSRF Tester	Makes a server fetch metadata, loopback or a local file, and proves it by content
+64	WEBAPI	8	File Upload Exploit	Walks the extension and content-type matrix an upload filter forgets
+44	WEBAPI	8	JWT Attack	Alg:none, key confusion, kid injection and offline cracking against a token
+62	WEBAPI	8	API Versioning Bypass	The old version answers while the new one is locked

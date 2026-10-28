@@ -4,37 +4,38 @@
 set -u
 umask 077
 
-# Self-locate ROOT (symlink-walk, pkexec safe)
-_SH_SRC="${BASH_SOURCE[0]}"
-while [ -L "$_SH_SRC" ]; do
-    _SH_DIR="$(cd -- "$(dirname -- "$_SH_SRC")" && pwd)"
-    _SH_SRC="$(readlink -- "$_SH_SRC")"
-    [[ "$_SH_SRC" != /* ]] && _SH_SRC="$_SH_DIR/$_SH_SRC"
-done
-CLOUDSTING_ROOT="$(cd -- "$(dirname -- "$_SH_SRC")/.." && pwd)"
-MOD_DIR="$(dirname -- "$_SH_SRC")"
+# Everything below the header depends on the root, and the root is
+# derived from this file only after it is sourced. Clear any inherited
+# value first: a caller that itself sources the core would otherwise
+# hand this module *its* directory, and the module would read its own
+# name as a path.
+unset CS_MOD_DIR
+
+# The shared core owns the root, the loot tree, the run id, the TSV
+# writer, the three-state provider gate, redaction and the selftest
+# ledger. Sourcing it is what keeps loot under <root>/loot instead of
+# $HOME/loot, so the launcher and the findings store can see a run.
 MODULE_ID="03_bucket_enum"
-export CLOUDSTING_ROOT MOD_DIR MOD_NAME="Cloud Bucket Enumeration"
+MOD_NAME="Cloud Bucket Enumeration"
+# shellcheck source=../data/lib/core.sh
+source "$(dirname "${BASH_SOURCE[0]}")/../data/lib/core.sh"
 
-# Restore real HOME (parent of CLOUDSTING_ROOT), fixed for pkexec/su runs
-_HOMEP="$(dirname -- "$CLOUDSTING_ROOT")"
-[ -d "$_HOMEP" ] && HOME="$_HOMEP"
-export HOME
+# Back-compat: run-id variable for this module, from the core run id
+# the one run id the core minted.
+BUCKET_RUN_ID="$CS_RUN_ID"
+export BUCKET_RUN_ID
+RUN_ID="$CS_RUN_ID"
+export RUN_ID
 
-# Runtime dirs
-RUN_ID="$(date '+%Y%m%d-%H%M%S')-$$"
-export BUCKET_RUN_ID="$RUN_ID"
-: "${TMP_DIR:=/tmp/cloudsting}"
-: "${LOOT_DIR:=$HOME/loot/cloudsting}"
-: "${STATE_DIR:=$TMP_DIR/state}"
-OUT_DIR="$LOOT_DIR/bucket_enum"
-mkdir -p "$TMP_DIR" "$OUT_DIR" "$STATE_DIR" 2>/dev/null || true
+# Loot directory for this module: <root>/loot/bucket_enum/
+OUT_DIR="$CS_LOOT/bucket_enum"
+mkdir -p "$OUT_DIR" 2>/dev/null || true
+
+# artifacts this module writes, all under the core's loot tree
 RESULT_FILE="$OUT_DIR/result-$RUN_ID.tsv"
 PERM_FILE="$OUT_DIR/perm-$RUN_ID.tsv"
-STATE_FILE="$STATE_DIR/bucket_enum.json"
-WORDS_CACHE="$STATE_DIR/bucket_words.cache"
-
-# ------------------------------------------------------------------ helpers
+STATE_FILE="$CS_STATE_DIR/bucket_enum.json"
+WORDS_CACHE="$CS_STATE_DIR/bucket_words.cache"
 be_log() { printf '[%s] %s\n' "$MODULE_ID" "$*" >&2; }
 
 # Three-state provider detection: creds-present | creds-missing | tool-missing
@@ -125,8 +126,9 @@ be_cmd_domain() {
     local domain="${1:-}"
     [ -z "$domain" ] && { be_log 'usage: --domain <domain> [providers]'; return 2; }
     shift || true
-    BUCKET_PROVIDERS="${*:-$BUCKET_PROVIDERS:-}"
+    local asked="${*:-}"
     : "${BUCKET_PROVIDERS:=aws}"
+    [ -n "$asked" ] && BUCKET_PROVIDERS="$asked"
     be_log "unauthenticated bucket discovery for '$domain'"
     local cands cand rc total=0 found=0
     cands="$( { be_candidates_for "$domain"; be_load_words; } | sort -u | head -"${BUCKET_MAX_CANDIDATES:-50}" )"

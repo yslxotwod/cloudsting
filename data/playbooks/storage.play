@@ -1,0 +1,6 @@
+#desc: Storage exposure — buckets, public objects and dead CNAMEs
+module 03 --enum
+module 03 --domain "$TARGET"
+module 18 --takeover "$TARGET"
+module 18 --zones
+continue

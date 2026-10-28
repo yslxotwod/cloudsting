@@ -1,0 +1,10 @@
+#desc: Uncredentialed recon chain — nothing here needs a cloud account
+# bare target in, mapped surface out. Each step's stdout feeds the next step's
+# stdin, so a domain discovered in step 2 is what step 3 sweeps.
+set TARGET=localhost
+module 01 --status-tsv
+module 03 --domain "$TARGET"
+module 18 --takeover "$TARGET"
+module 18 --zones
+module 18 --vpcs
+stop-on-fail

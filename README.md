@@ -10,7 +10,7 @@ REST/GraphQL surfaces that sit in front of them.
 Every module is a standalone script. The GUI is a view over them, not a
 container — nothing is locked behind the interface.
 
-> **Early development.** Twenty-three of the eighty-four planned modules exist.
+> **Early development.** Twenty-four of the eighty-four planned modules exist.
 > Modules that need provider credentials report what they are missing rather
 > than pretending to succeed, and every module ships a `--selftest` that runs
 > offline.
@@ -60,6 +60,83 @@ Every module also has `--selftest`, `--status-tsv`, `--menu` and `--help`:
 for m in modules/*.sh; do printf '%s: ' "$m"; bash "$m" --selftest | tail -1; done
 ```
 
+### The launcher
+
+One entry point, `cloudsting.sh`, over every module. It owns the module metadata
+(`data/registry.tsv`) — the GUI reads it rather than carrying its own copy, so a
+module added to the registry appears in both places at once.
+
+```bash
+./cloudsting.sh menu                    # every module, grouped by category
+./cloudsting.sh list                    # id, slug, title, category — TSV
+./cloudsting.sh info 3                  # everything known about one module
+./cloudsting.sh run 03 --domain example.com
+./cloudsting.sh selftest                # every module's selftest, one summary line
+./cloudsting.sh selftest 15             # one module
+./cloudsting.sh status all              # each module's own status report
+./cloudsting.sh loot                    # newest artifacts first
+./cloudsting.sh session                 # which provider is actually authenticated
+```
+
+A module reference resolves by number (`3`, `03`), by slug (`03_bucket_enum`,
+`bucket_enum`) or by title. `run` is an `exec` passthrough: the module's exit code
+is the launcher's exit code, so it composes.
+
+| Verb | What it does |
+|---|---|
+| `menu` | Grouped module list, every drawer open |
+| `list` | `id<TAB>slug<TAB>title<TAB>category` |
+| `info <ref>` | Path, verbs, selftest count, phase, loot directory |
+| `run <ref> [args…]` | Execute the module, preserving its exit code |
+| `selftest [ref\|all]` | Run selftests, one line per module, then a summary |
+| `status [ref\|all]` | The module's `--status-tsv` rows, slug-prefixed |
+| `session [--tsv\|--json\|--summary]` | Credential identity and provider state |
+| `loot [ref] [n]` | Newest artifacts across the loot tree |
+| `playbook [name]` | Run a named pipeline of modules |
+| `findings <verb>` | The unified findings store (see below) |
+| `registry [--tsv\|--json\|--header\|--generate]` | The module registry |
+| `deps` | What this box has and what it is missing |
+| `completion bash\|zsh` | Shell completion |
+| `man` | Manual page on stdout |
+| `version`, `help` | — |
+
+`bin/` holds thin wrappers so the tools work from any directory:
+
+| Wrapper | For |
+|---|---|
+| `bin/cloudsting` | The launcher, resolvable through a symlink on `PATH` |
+| `bin/cloudsting-gui` | The GTK4 window, with the root exported before it starts |
+| `bin/cloudsting-tui` | A terminal view: module list, per-module run, live output |
+
+### The shared core
+
+Every module sources `data/lib/core.sh`. It owns the paths, the run id, the TSV
+writer, the three-state provider gate, redaction, the selftest ledger and the exit
+trap — the things twenty-three modules used to each carry their own copy of, and
+drift on.
+
+```bash
+MODULE_ID="24_snapshot_theft"
+source "$(dirname "${BASH_SOURCE[0]}")/../data/lib/core.sh"
+```
+
+What it guarantees:
+
+* **Loot lives under the project**, never under `$HOME`. `$CS_LOOT/<slug with the
+  number stripped>`. A run under `pkexec` writes to the same tree as a run by the
+  operator.
+* **One TSV writer.** `cs_row KEY VALUE…` escapes tabs, CRs and newlines out of
+  every field, so a value can never shift a later column.
+* **One three-state gate.** `cs_provider_state aws` returns `tool-missing`,
+  `creds-missing` or `creds-present` — never a fourth state, never a boolean.
+* **One selftest ledger.** `chk name got want` plus `cs_selftest_done`, which
+  prints the `RESULT\tPASS(n)` line every caller already parses.
+
+The recurring bug classes are designed out rather than remembered: tab is IFS
+whitespace so `IFS=$'\t' read -r a b c` collapses empty fields and shifts every
+later column — `cs_split` splits on a sentinel instead. `grep '\t'` matches a
+literal `t`; `awk -F'\t'` does not.
+
 ### The GUI
 
 ```bash
@@ -71,6 +148,20 @@ ninja -C build
 
 `meson` and `ninja` are only needed for the GUI. The modules are plain bash and
 run without them.
+
+**Module output streams.** A verb's stdout and stderr are piped line by line into
+the page as they arrive — stderr prefixed and coloured — instead of appearing in
+one dump when the process exits. The status bar beside the pane counts lines while
+it runs and ends on `done · exit 0 · 412 ms`.
+
+**The session panel reads the launcher.** It calls `cloudsting.sh session --tsv`,
+so the account, region, identity, per-provider state and last inventory are the
+same values the CLI reports. A provider that is missing reads `tool-missing` — the
+panel says `no tool` rather than inventing an empty string.
+
+**Module metadata comes from the registry.** `native/src/main1.c` carries no
+module list; it loads `cloudsting registry --tsv` at startup and maps category to
+icon. Adding module 24 is a registry row, not a C edit.
 
 ### Dependencies
 
@@ -109,6 +200,84 @@ that is installed from a cloud that is actually authenticated:
 | `--install-all` | Install missing critical tools plus the optional set |
 | `--install-pipx`, `--install-git` | Install one tool from its upstream source |
 
+---
+
+## Playbooks
+
+A playbook is a pipeline: an ordered list of modules where each step's rows are
+handed to the next step on stdin, and every artifact lands under one run
+directory. The point is that a recon sweep produces **one record** instead of
+five unrelated files.
+
+```bash
+./cloudsting.sh playbook                      # list the playbooks
+./cloudsting.sh playbook recon-only           # run one
+./cloudsting.sh loot playbooks                # its artifacts, newest first
+```
+
+| Playbook | Steps |
+|---|---|
+| `recon-only` | inventory → buckets → DNS → VPC |
+| `identity` | credential validate → IAM privesc → role chains → policy audit |
+| `storage` | inventory → buckets → user-data → secrets |
+| `imds` | SSRF probe → IMDSv2 bypass → user-data |
+| `container` | container escape → registry recon → k8s surface → k8s secrets |
+| `api-surface` | serverless → registry → DNS |
+| `full-desk` | everything, in dependency order |
+
+Format, in `data/playbooks/*.play`:
+
+```
+#desc: Storage exposure end to end
+set TARGET=example.com
+module 02_inventory
+module 03_bucket_enum --sweep
+stop-on-fail
+module 16_kubernetes
+```
+
+`set` defines a variable for every later step, `stop-on-fail` ends the playbook
+on a non-zero exit (`continue` is the default), and each step's stdout is written
+to `loot/playbooks/<run-id>/<n>-<slug>.tsv` with its stderr beside it as `.err`.
+
+## The findings store
+
+Every module speaks TSV for one reader: the operator watching a terminal. A
+sweep needs a second reader — something that can answer *what is actually wrong,
+worst first*, across modules.
+
+```bash
+./cloudsting.sh findings ingest 03 loot/bucket_enum/result-*.tsv example.com
+./cloudsting.sh findings top 20
+./cloudsting.sh findings stats
+./cloudsting.sh findings correlate
+```
+
+The store is one append-only TSV at `loot/findings.tsv`:
+
+```
+ts  module  category  severity  target  check  detail  evidence
+```
+
+**Severity is assigned by rule, not by the module that emitted the row.**
+`data/findings.map` holds ordered glob rules — `<module> <key> <value>
+<severity>`, first match wins — so a public bucket is critical because it is a
+public bucket, whether module 03 or module 02 surfaced it. A row the module
+already graded (`CRIT…`, `HIGH…`, `WARN…`) keeps that grade. A value that reads
+`none`, `not found` or `tool-missing` is recorded as `clean`, not as a finding —
+absence of a control that works is not the same fact as a control that failed,
+and the store keeps them apart.
+
+`correlate` is the reason the schema exists: it groups rows by
+`target` + `check` and reports only those reported by more than one module. A
+public bucket, a wildcard role trust and a disabled audit trail on the same
+account become one incident with three witnesses.
+
+Ingest skips what is not a row — a module's help banner, an indented `--flag
+description` line — so a playbook artifact with a header in it is safe to feed.
+
+---
+
 ### The interface
 
 The GUI opens on a **Dashboard** — every module as a card, grouped by the
@@ -141,8 +310,8 @@ a filter by severity.
 
 ## Modules
 
-Twenty-three modules, grouped by the categories the application itself uses, so this
-list and the Dashboard cannot drift apart.
+Twenty-four modules, grouped by the categories the application itself uses, so
+this list and the Dashboard cannot drift apart.
 
 ### System
 
@@ -157,99 +326,175 @@ list and the Dashboard cannot drift apart.
 | `01_cred_validate` | Detect a credential's provider from its shape, validate the format offline, then probe it live where that is possible | 19 checks |
 | `02_inventory` | Enumerate reachable assets per provider, three-state per provider | 11 checks |
 
-### Recon
+### Module inventory
+
+Thirty-one modules, grouped by what job they do. Every module ships
+standalone, carries its own `--selftest`, and writes TSV.
+
+#### Setup
 
 | Module | Description | Selftest |
 |---|---|---|
-| `03_bucket_enum` | Guess bucket names for a domain, probe one bucket unauthenticated, or sweep an authenticated account | 11 checks |
-| `04_takeover` | Subdomain takeover: fingerprint the body, classify the dangling CNAME, name the claimable service | 10 checks |
-| `13_serverless_recon` | Serverless functions across AWS, GCP and Azure: list, environment, URLs, invoke | 8 checks |
-| `14_registry_recon` | Container registries — ECR, GAR, ACR and Docker Hub OSINT | 8 checks |
-| `18_cloud_dns` | Hosted zones across Route 53, Cloud DNS and Azure DNS; record dumps; dead-CNAME audit; zone transfers | 21 checks |
-| `19_vpc_map` | Virtual networks, subnets, route tables and gateways, with an exposure read on the result | 19 checks |
+| `00_deps` | What this box has, what it is missing, and what is actually authenticated | 41 checks |
 
-### Exploit
+#### Credentials
 
 | Module | Description | Selftest |
 |---|---|---|
-| `05_iam_privesc` | AWS IAM privilege-escalation mapper with a 20-technique knowledge base | 11 checks |
-| `06_role_chains` | Role trust analyser and `sts:AssumeRole` chain tracer | 7 checks |
-| `09_ssrf_imds` | SSRF into instance metadata: probe a URL, sweep every known endpoint | 11 checks |
-| `10_imdsv2_bypass` | The techniques that still reach metadata on IMDSv2-only hosts | 10 checks |
-| `15_container_escape` | Escape primitives in the current container: capabilities, mounts, namespaces, cgroups, docker socket | 9 checks |
-| `16_k8s_attack_surface` | Cluster, workload and RBAC enumeration across EKS, GKE and AKS | 6 checks |
-| `17_k8s_secrets` | Secret extraction, decoding, service-account tokens and RBAC abuse paths | 8 checks |
+| `01_cred_validate` | Identify a credential from its shape, validate it offline, probe it live — cloud keys and 23 telco vendor auth oracles | 19 checks |
+| `08_secrets_scan` | Key and token patterns in files, directories and streams | 12 checks |
 
-### Audit
+#### Surface
 
 | Module | Description | Selftest |
 |---|---|---|
-| `07_policy_audit` | IAM policy auditor: wildcards, NotAction/NotResource holes, privilege-bearing grants | 12 checks |
-| `08_secrets_scan` | Sixteen signature families across a filesystem, a file or a stream | 12 checks |
-| `20_sg_audit` | World-open firewall rules graded by the port class behind them | 36 checks |
+| `02_inventory` | Enumerate what the account actually holds across providers | 11 checks |
+| `41_api_discovery` | Endpoints on a host or a spec, with a baseline so a catch-all page yields nothing | 35 checks |
+| `46_key_harvest` | Key and token patterns in pages, script bundles, headers and specs | 31 checks |
+| `76_debug_endpoints` | Health, actuator, docs and env endpoints that answer when they should not | 34 checks |
 
-### Data
+#### Storage
 
 | Module | Description | Selftest |
 |---|---|---|
-| `11_user_data` | EC2 user-data and instance identity documents, then a secret scan over what came back | 8 checks |
-| `12_lambda_dump` | Lambda enumeration, configuration dump, code download, environment extraction | 6 checks |
-| `21_db_exposure` | Managed databases: public reachability, missing backups/encryption, and a one-endpoint TCP probe | 34 checks |
-| `22_audit_evasion` | Audit-trail coverage: which logging controls are off, and what each missing one hides | 27 checks |
+| `03_bucket_enum` | Storage buckets, their permissions, and their public exposure | 11 checks |
+| `14_registry_recon` | Registries, repositories, tags, and image layers worth pulling apart | 8 checks |
+| `21_db_exposure` | Managed database instances and which of them answer from the world | 34 checks |
+
+#### DNS
+
+| Module | Description | Selftest |
+|---|---|---|
+| `39_tenant_enum` | Tenant ids, bucket namespaces, exposed APIs, certificate transparency and PTR sweeps | 27 checks |
+
+#### Identity
+
+| Module | Description | Selftest |
+|---|---|---|
+| `05_iam_privesc` | Known escalation paths out of the current principal | 11 checks |
+| `06_role_chains` | Role trust policies and the chains they permit | 7 checks |
+| `07_policy_audit` | Wildcard actions, wildcard resources, missing conditions | 12 checks |
+| `23_persistence` | Footholds that outlive the session, per provider | 23 checks |
+
+#### Compute
+
+| Module | Description | Selftest |
+|---|---|---|
+| `09_imds` | SSRF to IMDSv1, IMDSv2 bypass, user-data, and the credentials in them | 22 checks |
+| `12_serverless` | List, dump env, find invoke URLs, pull the code | 16 checks |
+| `15_container_escape` | Capabilities, mounts, cgroups and host namespace reachability | 9 checks |
+| `16_kubernetes` | Clusters, RBAC, who can do what, and the secrets behind it | 13 checks |
+
+#### Network
+
+| Module | Description | Selftest |
+|---|---|---|
+| `18_network` | DNS, dangling records and claimable subdomains, subnets, routes and firewall exposure | 37 checks |
+
+#### Attrition
+
+| Module | Description | Selftest |
+|---|---|---|
+| `22_audit_evasion` | What the provider records, and where the trail has holes | 27 checks |
+
+#### Web API
+
+| Module | Description | Selftest |
+|---|---|---|
+| `42_openapi` | Reads a spec and reports what it admits to: per-operation security, ids, url-taking params | 42 checks |
+| `43_graphql` | Probes graph paths and reads a schema the server never meant to hand out | 52 checks |
+| `44_jwt` | Alg:none, key confusion, kid injection and offline cracking against a token | 58 checks |
+| `48_bola` | Object-level authorization across subscriber, account and sim ids | 48 checks |
+| `49_bfla` | Function-level authorization across admin, agent and customer verbs | 48 checks |
+| `50_mass_assign` | Fields the server trusts because the client sent them | 46 checks |
+| `52_rate_limit` | Forwarding-header rotation against a limit that trusts the header | 48 checks |
+| `54_ssrf` | Makes a server fetch metadata, loopback or a local file, and proves it by content | 43 checks |
+| `62_version_bypass` | The old version answers while the new one is locked | 38 checks |
+| `64_file_upload` | Walks the extension and content-type matrix an upload filter forgets | 53 checks |
 
 ### Verb reference
 
 Each module's own `--help` is the authority; this is the map.
 
 ```
-00_deps              --status-tsv --preflight --distro-info install --install-missing
-                     --install-all --install-pipx --install-git --selftest
-01_cred_validate     --detect --validate <credential> --list-formats --status-tsv
-02_inventory         --run --regions --status-tsv
-03_bucket_enum       --enum --perm <bucket> --domain <domain> --status-tsv
-04_takeover          --scan <domain> --check <subdomain> --list --status-tsv
-05_iam_privesc       --map --explain <technique> --list --check <action> --status-tsv
-06_role_chains       --scan --chain <role> --whoami --list --status-tsv
-07_policy_audit      --audit [file] --check <keyword> --explain <rule> --list --status-tsv
-08_secrets_scan      --scan <path> --detect <value> --list --status-tsv
-09_ssrf_imds         --probe <url> --tunnel --check <url> --list --status-tsv
-10_imdsv2_bypass     --headers --list --ssrf <url> --exec <url> --check <url> --status-tsv
-11_user_data         --dump --extract --keys --list --status-tsv
-12_lambda_dump       --list --dump <fn> --download <fn> --env <fn> --urls --status-tsv
-13_serverless_recon  --list --env <fn> --urls --invoke <fn> --all --status-tsv
-14_registry_recon    --scan --list <repo> --images <repo> --tags <repo> --pull <repo:tag>
-                     --dhl <namespace> --status-tsv
-15_container_escape  --check --mounts --proc --cgroup --host --all --list --status-tsv
-16_k8s_attack_surface --clusters --nodes --pods --rbac --secrets --all --list --status-tsv
-17_k8s_secrets       --extract --decode <ns> <secret> --sa-tokens --rbac-abuse --all
-                     --list --status-tsv
-18_cloud_dns         --zones --records <zone> --resolve <name> [type] --dangling <zone>
-                     --axfr <zone> --all --list --status-tsv
-19_vpc_map           --vpcs --subnets --routes --gateways --map --list --status-tsv
-20_sg_audit          --rules --audit --explain <port> --list --status-tsv
-21_db_exposure       --instances --public --probe <host> [port] --engines --status-tsv
-22_audit_evasion     --posture --blind --explain <check> --list --status-tsv
-```
+00_deps              --distro-info --install-all --install-git --install-missing --install-pipx
+                     --preflight --selftest --status-tsv
+01_cred_validate     --defaults --detect --detect-vendor --help --list-formats --login --menu
+                     --selftest --status-tsv --sweep --validate --vendors
+02_inventory         --help --menu --regions --run --selftest --status-tsv
+03_bucket_enum       --domain --enum --menu --perm --selftest --status-tsv
+05_iam_privesc       --check --explain --help --list --map --menu --selftest --status-tsv
+06_role_chains       --chain --help --list --menu --scan --selftest --status-tsv --whoami
+07_policy_audit      --audit --check --explain --help --list --menu --selftest --status-tsv
+08_secrets_scan      --detect --help --list --menu --scan --selftest --status-tsv
+09_imds              --all --check --creds --endpoints --exec --help --keys --list --menu
+                     --probe --selftest --status-tsv --techniques --token --userdata
+12_serverless        --all --download --download-all --dump --env --help --invoke --list --menu
+                     --selftest --status-tsv --urls
+14_registry_recon    --dhl --help --images --list --menu --pull --scan --selftest --status-tsv
+                     --tags
+15_container_escape  --all --cap --cgroup --check --help --host --list --menu --mounts --proc
+                     --selftest --status-tsv
+16_kubernetes        --abuse --all --clusters --decode --extract --help --kubeconfig --list
+                     --menu --nodes --pods --rbac --sa-tokens --secrets --selftest --status-tsv
+18_network           --all --audit --axfr --claim --dangling --fingerprints --gateways --help
+                     --list --map --menu --records --resolve --routes --rules --selftest
+                     --status-tsv --subnets --takeover --vpcs --zones
+21_db_exposure       --engines --help --instances --menu --probe --public --selftest
+                     --status-tsv
+22_audit_evasion     --blind --explain --help --list --menu --posture --selftest --status-tsv
+23_persistence       --explain --footholds --help --list --menu --selftest --status-tsv
+39_tenant_enum       --all --apis --azure --buckets --crt --help --menu --projects --ptr
+                     --selftest --status-tsv --tenant
+41_api_discovery     --all --discover --help --menu --methods --selftest --spec --status-tsv
+                     --wordlist
+42_openapi           --analyze --auth --diff --endpoints --find --help --list --menu --params
+                     --selftest --spec --status-tsv
+43_graphql           --check --depth --fields --find --help --introspect --list --menu --queries
+                     --schema --selftest --status-tsv
+44_jwt               --alg --check --claims --crack --forge --help --inspect --jku --keys --kid
+                     --list --menu --selftest --status-tsv
+46_key_harvest       --all --defang --detect --harvest --headers --help --js --menu --providers
+                     --selftest --status-tsv
+48_bola              --check --enumerate --help --idlist --list --matrix --menu --patterns
+                     --selftest --status-tsv --sweep
+49_bfla              --check --compare --functions --help --list --menu --methods --object
+                     --selftest --status-tsv --sweep
+50_mass_assign       --check --fields --help --list --menu --selftest --shadow --status-tsv
+                     --sweep --verdicts
+52_rate_limit        --check --headers --help --list --menu --modes --probe --rotate --selftest
+                     --status-tsv
+54_ssrf              --callback --check --help --list --menu --params --parse --probe --save
+                     --selftest --status-tsv --sweep --targets --vendors
+62_version_bypass    --compare --headers --help --list --matrix --menu --normalise --probe
+                     --selftest --status-tsv --sweep --versions
+64_file_upload       --check --endpoints --extensions --help --list --magic --menu --name
+                     --polyglot --probe --selftest --status-tsv --sweep --types
+76_debug_endpoints   --actuator --all --check --docs --env --health --help --list --menu --scan
+                     --selftest --status-tsv
 
 ### Not built yet
 
-Sixty-one modules are planned and unbuilt. They are listed here so the gap is
-visible rather than implied:
+The long tail is still open, but the campaign modules that matter land first.
+Built so far spans setup, credentials, surface, storage, DNS, identity, compute,
+network, attrition and the first eleven of the web-API family.
 
 | Range | Planned |
 |---|---|
-| 23–30 | Persistence, cross-account trust, snapshot theft, event/webhook abuse, metadata DNS rebinding, CI/CD attack, WAF bypass, edge exploitation |
-| 31–40 | Vault extraction, provider API fuzzing, mail/SES abuse, console hijack, fleet sync, cryptojacking, backup ransom, cloud AD, tenant OSINT, canary hunting |
-| 41–60 | API discovery, OpenAPI and GraphQL mapping, JWT and OAuth abuse, API-key harvesting, auth bypass, BOLA/BFLA, mass assignment, HPP, rate-limit abuse, injection, SSRF, webhooks, gRPC, WebSocket, SSE, request smuggling, response leaks, CORS, versioning, pagination |
-| 61–78 | Upload abuse, deserialization, webhook signatures, session and refresh abuse, GraphQL DoS, binary fuzzing, spec diffing, business logic, race conditions, API DNS rebinding, LLM endpoints, key rotation, debug endpoints, mobile backends, replay |
-| 79–84 | API-gateway recon, serverless URLs, IAM-derived API keys, event injection, log injection, token forging |
+| 24–34 | Cross-account trust, snapshot theft, event/webhook abuse, metadata DNS rebinding, CI/CD attack, WAF bypass, edge exploitation, vault extraction, provider API fuzzing, mail abuse, console hijack |
+| 35–45 | Fleet sync, cryptojacking, backup ransom, cloud AD, canary hunting, auth bypass, HPP, injection, webhook abuse, gRPC, WebSocket |
+| 51–61 | Request smuggling, response leaks, CORS, pagination abuse, deserialization, webhook signatures, session and refresh abuse, GraphQL DoS, binary fuzzing, spec diffing, business logic |
+| 63–84 | Race conditions, API DNS rebinding, LLM endpoints, key rotation, mobile backends, replay, gateway recon, IAM-derived API keys, event injection, log injection, token forging |
 
 ---
 
 ### How to audit it yourself
 
 ```bash
-# every module, offline
+# every module, offline, one summary line
+./cloudsting.sh selftest
+
+# the raw loop, if you want per-module lines
 for m in modules/*.sh; do printf '%-32s ' "$m"; bash "$m" --selftest | tail -1; done
 
 # what each module thinks its own state is
@@ -268,7 +513,7 @@ The GUI is a view over the scripts in `modules/`. Nothing is locked behind it:
 ```bash
 ./modules/03_bucket_enum.sh --domain example.com
 ./modules/05_iam_privesc.sh --explain PassRole
-./modules/17_k8s_secrets.sh --extract
+./modules/16_kubernetes.sh --secrets
 ```
 
 Each module is a self-locating script: it resolves its own path, so it runs from
@@ -281,7 +526,7 @@ of the dispatch path.
 A module is a small state machine with the same shape everywhere:
 
 ```
-lib header      self-location, HOME reset, tmp/, loot/, state/ creation, run id
+lib header      MODULE_ID + source data/lib/core.sh (paths, run id, TSV writer)
 knowledge base  the tables the module reasons over (techniques, signatures, endpoints)
 collectors      one function per provider or per check, each emitting rows
 verbs           --run / --check / --probe / --scan / --map, each honest about absence
@@ -314,6 +559,10 @@ produced a real bug at least once:
   in module 02.
 - **No approval gates and no armed variables.** A module either has what it needs
   or it says what it is missing.
+- **No module hardcodes a path.** `data/lib/core.sh` sets `$CS_LOOT`,
+  `$CS_STATE_DIR`, `$CS_TMP_DIR` and `$CS_RUN_ID` from the file's own location, so
+  the same module writes the same tree whether it ran from the launcher, the GUI,
+  `pkexec` or a cron job.
 
 ---
 
@@ -343,8 +592,19 @@ modules, open tabs, and each module's own working data (`state/inventory.json`,
 `state/bucket_words.cache`, …). Delete a file and that preference resets to its
 default; the toolkit writes it again on the next change.
 
-**`data/` holds reference data** the modules reason over, such as the subdomain
-takeover wordlist. It is text, versioned, and small enough to diff.
+**`data/` holds reference data** the modules reason over. It is text, versioned,
+and small enough to diff:
+
+| File | Holds |
+|---|---|
+| `data/registry.tsv` | The module registry — id, slug, title, category, mission, verbs, selftest count, phase. The GUI loads this; it is the only module list. |
+| `data/lib/core.sh` | The shared core every module sources. |
+| `data/findings.map` | Severity rules: `<module> <key> <value> <severity>`, first match wins. |
+| `data/playbooks/*.play` | Pipelines: an ordered module list with `set` variables and a failure policy. |
+
+Two more live under `loot/` because they are output, not reference:
+`loot/findings.tsv` (the findings store) and
+`loot/playbooks/<run-id>/` (one directory per playbook run, one file per step).
 
 ---
 
@@ -357,9 +617,23 @@ what the target actually did.
 **"It reports `creds-missing` for a provider I am logged into."**
 Check what the module looks for: `~/.aws/credentials` or `AWS_ACCESS_KEY_ID` for
 AWS, `gcloud auth list` for GCP, `~/.azure/azureProfile.json` for Azure,
-`doctl auth list` for DigitalOcean. A module running under a different `HOME`
-sees a different credential store — the modules reset `HOME` to their own tree by
-design, and `00_deps --preflight` prints the state it sees.
+`doctl auth list` for DigitalOcean. `cs_provider_state` in `data/lib/core.sh` is
+the one implementation of that check — if it says `tool-missing`, the CLI is not
+on `PATH` for this process, which under `pkexec` means a different `PATH` than
+your shell's. `./cloudsting.sh session --summary` prints what each provider
+reports, and `./modules/00_deps.sh --preflight` prints what the box can reach.
+
+**"The GUI window is empty."**
+It loaded no modules. It reads `cloudsting registry --tsv`; run that by hand. If
+it prints rows and the window is still empty, the launcher is not executable from
+where the GUI thinks the root is — `bin/cloudsting-gui` exports
+`CLOUDSTING_ROOT` before launching for exactly that reason.
+
+**"A module's output appears all at once at the end."**
+It should not, for a verb run from a page: output streams line by line. A module
+that buffers its own stdout (a `python3 -c` block without `-u`, a command piped
+through `sort`) will still arrive in chunks — the streaming reader shows what the
+process actually writes.
 
 **A selftest fails after a change.**
 Run it before anything else:

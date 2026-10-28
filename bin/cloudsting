@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# bin/cloudsting — PATH wrapper
+#
+# The launcher resolves the project root from its own path. A symlink into
+# bin/ would break that unless the link is followed, which it is: the
+# launcher walks links before taking its dirname. This file exists so
+# `cloudsting` works from any directory without depending on the symlink.
+#
+# Install:  ln -sf "$PWD/bin/cloudsting" ~/.local/bin/cloudsting
+set -Eeuo pipefail
+
+self="${BASH_SOURCE[0]}"
+while [[ -L "$self" ]]; do
+    dir="$(cd -P "$(dirname "$self")" && pwd)"
+    self="$(readlink "$self")"
+    [[ "$self" != /* ]] && self="$dir/$self"
+done
+root="$(cd -P "$(dirname "$self")/.." && pwd)"
+
+exec "$root/cloudsting.sh" "$@"

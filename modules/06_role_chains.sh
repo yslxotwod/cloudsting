@@ -4,34 +4,37 @@
 set -u
 umask 077
 
-# Self-locate ROOT (symlink-walk, pkexec safe)
-_SH_SRC="${BASH_SOURCE[0]}"
-while [ -L "$_SH_SRC" ]; do
-    _SH_DIR="$(cd -- "$(dirname -- "$_SH_SRC")" && pwd)"
-    _SH_SRC="$(readlink -- "$_SH_SRC")"
-    [[ "$_SH_SRC" != /* ]] && _SH_SRC="$_SH_DIR/$_SH_SRC"
-done
-CLOUDSTING_ROOT="$(cd -- "$(dirname -- "$_SH_SRC")/.." && pwd)"
-MOD_DIR="$(dirname -- "$_SH_SRC")"
+# Everything below the header depends on the root, and the root is
+# derived from this file only after it is sourced. Clear any inherited
+# value first: a caller that itself sources the core would otherwise
+# hand this module *its* directory, and the module would read its own
+# name as a path.
+unset CS_MOD_DIR
+
+# The shared core owns the root, the loot tree, the run id, the TSV
+# writer, the three-state provider gate, redaction and the selftest
+# ledger. Sourcing it is what keeps loot under <root>/loot instead of
+# $HOME/loot, so the launcher and the findings store can see a run.
 MODULE_ID="06_role_chains"
 MOD_NAME="IAM Role Trust & Chain Analyzer"
 MOD_VERSION="0.1.0"
-export CLOUDSTING_ROOT MOD_DIR MOD_NAME
+# shellcheck source=../data/lib/core.sh
+source "$(dirname "${BASH_SOURCE[0]}")/../data/lib/core.sh"
 
-_HOMEP="$(dirname -- "$CLOUDSTING_ROOT")"
-[ -d "$_HOMEP" ] && HOME="$_HOMEP"
-export HOME
+# Back-compat: run-id variable for this module, from the core run id
+# the one run id the core minted.
+RC_RUN_ID="$CS_RUN_ID"
+export RC_RUN_ID
+RUN_ID="$CS_RUN_ID"
+export RUN_ID
 
-RUN_ID="$(date '+%Y%m%d-%H%M%S')-$$"
-export RC_RUN_ID="$RUN_ID"
-: "${TMP_DIR:=/tmp/cloudsting}"
-: "${LOOT_DIR:=$HOME/loot/cloudsting}"
-: "${STATE_DIR:=$TMP_DIR/state}"
-OUT_DIR="$LOOT_DIR/role_chains"
-mkdir -p "$TMP_DIR" "$OUT_DIR" "$STATE_DIR" 2>/dev/null || true
+# Loot directory for this module: <root>/loot/role_chains/
+OUT_DIR="$CS_LOOT/role_chains"
+mkdir -p "$OUT_DIR" 2>/dev/null || true
+
+# artifacts this module writes, all under the core's loot tree
 RESULT_FILE="$OUT_DIR/roles-$RC_RUN_ID.tsv"
 CHAIN_FILE="$OUT_DIR/chains-$RC_RUN_ID.tsv"
-
 rc_log() { printf '[%s] %s\n' "$MODULE_ID" "$*" >&2; }
 
 # check_deps: ensure required tooling (aws/jq/curl) is present; diag to stderr
@@ -115,11 +118,34 @@ rc_cmd_chain() {
     done
 }
 
-# --whoami: identity context
+# --whoami: identity context, always four keys, in the three states
+# A viewer (the GUI session panel, the TUI) asks this once and renders it. It
+# must never read an error string as an identity, so an absent tool or absent
+# credential still answers with `state` set and the rest empty.
 rc_cmd_whoami() {
-    rc_check_deps || return 2
-    AWS_PAGER='' aws sts get-caller-identity --output json 2>/dev/null \
-        | jq -r '"account\t" + (.Account // "") + "\nuser\t" + (.Arn // "") + "\nuserid\t" + (.UserId // "")'
+    local tool_state cred_state
+    tool_state="$(cs_provider_state aws)"
+
+    case "$tool_state" in
+        tool-missing)
+            printf 'account\t-\nuser\t-\nuserid\t-\nstate\ttool-missing\n'
+            return 0 ;;
+        creds-missing)
+            printf 'account\t-\nuser\t-\nuserid\t-\nstate\tcreds-missing\n'
+            return 0 ;;
+    esac
+
+    local out
+    if out="$(AWS_PAGER='' aws sts get-caller-identity --output json 2>/dev/null)"; then
+        printf 'account\t%s\n' "$(jq -r '.Account // "-"' <<<"$out" 2>/dev/null || echo '-')"
+        printf 'user\t%s\n'    "$(jq -r '.Arn // "-"'     <<<"$out" 2>/dev/null || echo '-')"
+        printf 'userid\t%s\n'  "$(jq -r '.UserId // "-"'  <<<"$out" 2>/dev/null || echo '-')"
+        printf 'region\t%s\n'  "${AWS_REGION:-${AWS_DEFAULT_REGION:-$(aws configure get region 2>/dev/null || echo '-')}}"
+        printf 'state\tcreds-present\n'
+    else
+        printf 'account\t-\nuser\t-\nuserid\t-\nregion\t-\nstate\tcreds-invalid\n'
+    fi
+    return 0
 }
 
 # --list: show trust rows from last loot (or fallback note)

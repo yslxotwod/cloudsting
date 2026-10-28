@@ -81,14 +81,20 @@ cs_path(const char *relative)
 /* ==================================================================== */
 
 typedef struct {
-    const char *id;
-    const char *name;
-    const char *category;
-    const char *icon;
-    const char *description;
+    char *id;
+    char *name;
+    char *category;
+    char *icon;
+    char *description;
 } ModuleDefinition;
 
-static const ModuleDefinition modules[] = {
+/* One place owns module metadata: data/registry.tsv, read through
+ * `cloudsting.sh registry --tsv`. The C table below is only the last-resort
+ * fallback for a checkout whose launcher is missing or broken, so the window
+ * still opens with something in it instead of an empty grid. */
+static GPtrArray *module_table;      /* ModuleDefinition*, owned */
+
+static const ModuleDefinition module_fallback[] = {
     /* ---- SETUP ---- */
     { "00_deps",          "Dependencies",     "SETUP",
       "system-software-install-symbolic",
@@ -172,6 +178,139 @@ static const ModuleDefinition modules[] = {
       "document-open-recent-symbolic",
       "Which audit controls are missing, and what that hides" },
 };
+
+/* Category → icon. A registry row carries no icon column: the category
+ * decides, and a per-id override can be added here without touching the
+ * registry. Unknown categories get a neutral folder. */
+static const struct { const char *category; const char *icon; } module_icons[] = {
+    { "SETUP",      "system-software-install-symbolic" },
+    { "CREDS",      "dialog-password-symbolic" },
+    { "IDENTITY",   "system-users-symbolic" },
+    { "SURFACE",    "view-list-symbolic" },
+    { "COMPUTE",    "computer-symbolic" },
+    { "STORAGE",    "drive-harddisk-symbolic" },
+    { "NETWORK",    "network-wired-symbolic" },
+    { "DNS",        "network-workgroup-symbolic" },
+    { "ATTRITION",  "dialog-warning-symbolic" },
+    { "WEBAPI",     "network-server-symbolic" },
+    { "TOOLING",    "applications-utilities-symbolic" },
+    /* retired category names, kept so an old registry row still resolves */
+    { "RECON",      "view-list-symbolic" },
+    { "EXPLOIT",    "security-high-symbolic" },
+    { "CREDENTIALS", "dialog-password-symbolic" },
+    { "AUDIT",      "dialog-warning-symbolic" },
+    { "DATA",       "document-open-symbolic" },
+    { "API",        "network-server-symbolic" },
+};
+
+static const char *
+module_default_icon(const char *category)
+{
+    if (category != NULL)
+        for (guint i = 0; i < G_N_ELEMENTS(module_icons); i++)
+            if (g_strcmp0(module_icons[i].category, category) == 0)
+                return module_icons[i].icon;
+    return "folder-symbolic";
+}
+
+static void
+module_definition_free(gpointer p)
+{
+    ModuleDefinition *m = p;
+    if (m == NULL) return;
+    g_free(m->id);
+    g_free(m->name);
+    g_free(m->category);
+    g_free(m->icon);
+    g_free(m->description);
+    g_free(m);
+}
+
+/* Column order is fixed by `cloudsting.sh registry --tsv`:
+ *   id  slug  title  category  mission  verbs  selftest  phase */
+static void
+module_table_push(GPtrArray *out, const char *id, const char *name,
+                  const char *category, const char *description)
+{
+    ModuleDefinition *m = g_new0(ModuleDefinition, 1);
+    m->id          = g_strdup(id != NULL ? id : "");
+    m->name        = g_strdup(name != NULL ? name : m->id);
+    m->category    = g_strdup(category != NULL && *category ? category : "OTHER");
+    m->icon        = g_strdup(module_default_icon(m->category));
+    m->description = g_strdup(description != NULL ? description : "");
+    g_ptr_array_add(out, m);
+}
+
+static void
+module_table_load_fallback(GPtrArray *out)
+{
+    for (guint i = 0; i < G_N_ELEMENTS(module_fallback); i++)
+        module_table_push(out, module_fallback[i].id, module_fallback[i].name,
+                          module_fallback[i].category,
+                          module_fallback[i].description);
+}
+
+static GPtrArray *
+module_table_load(void)
+{
+    GPtrArray *out = g_ptr_array_new_with_free_func(module_definition_free);
+    g_autofree gchar *root = g_strdup(cs_root());
+    g_autofree gchar *launcher = g_build_filename(root, "cloudsting.sh", NULL);
+
+    if (!g_file_test(launcher, G_FILE_TEST_IS_EXECUTABLE)) {
+        module_table_load_fallback(out);
+        return out;
+    }
+
+    const char *argv[] = { launcher, "registry", "--tsv", NULL };
+    g_autoptr(GError) error = NULL;
+    GSubprocess *p = g_subprocess_newv(argv,
+        G_SUBPROCESS_FLAGS_STDOUT_PIPE | G_SUBPROCESS_FLAGS_STDERR_SILENCE,
+        &error);
+    if (p == NULL) {
+        g_warning("registry: %s", error->message);
+        module_table_load_fallback(out);
+        return out;
+    }
+
+    g_autofree gchar *raw = NULL;
+    g_autofree gchar *err = NULL;
+    if (!g_subprocess_communicate_utf8(p, NULL, NULL, &raw, &err, &error)) {
+        g_warning("registry: %s", error->message);
+    }
+    g_object_unref(p);
+
+    guint seen = 0;
+    if (raw != NULL) {
+        g_auto(GStrv) lines = g_strsplit(raw, "\n", -1);
+        for (guint i = 0; lines[i] != NULL; i++) {
+            if (*lines[i] == '\0') continue;
+            g_auto(GStrv) f = g_strsplit(lines[i], "\t", -1);
+            if (g_strv_length(f) < 5) continue;
+            if (g_strcmp0(f[0], "id") == 0) continue;   /* header row */
+            if (f[1] == NULL || *f[1] == '\0') continue;
+            module_table_push(out, f[1], f[2], f[3], f[4]);
+            seen++;
+        }
+    }
+
+    if (seen == 0)
+        module_table_load_fallback(out);
+    return out;
+}
+
+static guint
+module_count(void)
+{
+    return module_table != NULL ? module_table->len : 0;
+}
+
+static const ModuleDefinition *
+module_at(guint index)
+{
+    if (module_table == NULL || index >= module_table->len) return NULL;
+    return g_ptr_array_index(module_table, index);
+}
 
 /* ==================================================================== */
 /*  AppState                                                             */
@@ -660,8 +799,8 @@ static void toast_close_clicked(GtkButton *b, gpointer ud)
 static const char *
 module_icon_for(const char *id)
 {
-    for (guint i = 0; i < G_N_ELEMENTS(modules); i++)
-        if (g_strcmp0(modules[i].id, id) == 0) return modules[i].icon;
+    for (guint i = 0; i < module_count(); i++)
+        if (g_strcmp0(module_at(i)->id, id) == 0) return module_at(i)->icon;
     if (g_strcmp0(id, "system") == 0) return "preferences-system-symbolic";
     return "dialog-information-symbolic";
 }
@@ -670,8 +809,8 @@ static const char *
 module_name_for(const char *id)
 {
     if (id == NULL) return "cloudsting";
-    for (guint i = 0; i < G_N_ELEMENTS(modules); i++)
-        if (g_strcmp0(modules[i].id, id) == 0) return modules[i].name;
+    for (guint i = 0; i < module_count(); i++)
+        if (g_strcmp0(module_at(i)->id, id) == 0) return module_at(i)->name;
     if (g_strcmp0(id, "system") == 0) return "System";
     return "cloudsting";
 }
@@ -972,15 +1111,19 @@ typedef struct {
 } GenericModulePage;
 
 /* One action page's run state: its own output view and status line, so a
-   page keeps its own result instead of everybody sharing one drawer. */
+   page keeps its own result instead of everybody sharing one drawer.
+   `wait` is the subprocess handle — the output itself is already on screen,
+   streamed line by line as it arrived, so nothing has to be buffered here. */
 typedef struct {
     AppState *state;
     const ModuleSpec *spec;
     const PageSpec *page;
     GtkWidget *view;
     GtkWidget *status;
-    GSubprocess *proc;
+    GSubprocess *wait;
     GtkWidget *button;
+    char *last_err;      /* last stderr line, for the failure summary */
+    gint64 started_us;   /* monotonic start, so the footer can print elapsed */
 } PageRun;
 
 static void
@@ -1115,6 +1258,191 @@ cs_output_tag_for_line(const char *line)
     return "cs-plain";
 }
 
+/* ---------------------------------------------------------------- */
+/*  Live output                                                      */
+/* ---------------------------------------------------------------- */
+/* A module is a process that talks while it works: a scan prints each
+ * object as it resolves it, a selftest prints each check as it runs. Waiting
+ * for the process to exit and then dumping both pipes turns a two-minute
+ * scan into two minutes of nothing followed by a wall of text, so the pages
+ * read the pipes line by line and append each line the moment it arrives.
+ *
+ * Both pipes are read concurrently: a module that fills the stderr pipe
+ * while we are still draining stdout would otherwise deadlock on its own
+ * diagnostics.
+ *
+ * Everything below marshals to the main loop — GDK owns the widgets and the
+ * reader callbacks run on a worker thread. */
+
+typedef struct {
+    GtkWidget *view;        /* borrowed: the page outlives every reader */
+    GtkWidget *status;      /* optional label: shows a running line count */
+} OutputStream;
+
+typedef struct {
+    OutputStream     *stream;
+    GDataInputStream *in;
+    GString          *partial;   /* a line split across reads */
+    gboolean          from_stderr;
+    guint             lines;
+    char            **tail;      /* last non-empty line, for the summary */
+} StreamReader;
+
+typedef struct {
+    OutputStream *stream;
+    char         *line;
+    gboolean      from_stderr;
+    guint         lines;
+} StreamAppend;
+
+static gboolean
+stream_append_idle(gpointer data)
+{
+    StreamAppend *a = data;
+
+    if (a->stream == NULL || a->stream->view == NULL ||
+        !GTK_IS_TEXT_VIEW(a->stream->view))
+        goto out;
+
+    {
+        GtkTextBuffer *buf = gtk_text_view_get_buffer(
+            GTK_TEXT_VIEW(a->stream->view));
+        GtkTextIter end;
+        g_autofree char *prefixed = NULL;
+        const char *shown = a->line != NULL ? a->line : "";
+
+        /* stderr is a diagnostic channel; mark it so the colour rule sees it */
+        if (a->from_stderr)
+            shown = prefixed = g_strdup_printf("[err] %s", shown);
+
+        gtk_text_buffer_get_end_iter(buf, &end);
+        gtk_text_buffer_insert_with_tags_by_name(
+            buf, &end, shown, -1, cs_output_tag_for_line(shown), NULL);
+        gtk_text_buffer_get_end_iter(buf, &end);
+        gtk_text_buffer_insert(buf, &end, "\n", -1);
+
+        /* pin the pane to the newest line unless the operator scrolled away */
+        {
+            GtkWidget *scroll = gtk_widget_get_parent(a->stream->view);
+            if (scroll != NULL && GTK_IS_SCROLLED_WINDOW(scroll)) {
+                GtkAdjustment *adj = gtk_scrolled_window_get_vadjustment(
+                    GTK_SCROLLED_WINDOW(scroll));
+                gtk_adjustment_set_value(adj,
+                    gtk_adjustment_get_upper(adj) -
+                    gtk_adjustment_get_page_size(adj));
+            }
+        }
+    }
+
+    if (a->stream->status != NULL && a->lines > 0) {
+        g_autofree char *msg = g_strdup_printf("running… %u lines", a->lines);
+        gtk_label_set_text(GTK_LABEL(a->stream->status), msg);
+    }
+
+out:
+    g_free(a->line);
+    g_free(a);
+    return G_SOURCE_REMOVE;
+}
+
+/* Empty the pane before the first line of a run. */
+static void
+cs_output_clear(GtkWidget *view)
+{
+    if (view == NULL || !GTK_IS_TEXT_VIEW(view)) return;
+    gtk_text_buffer_set_text(gtk_text_view_get_buffer(GTK_TEXT_VIEW(view)),
+                             "", -1);
+}
+
+static void
+stream_reader_free(StreamReader *rd)
+{
+    if (rd == NULL) return;
+    g_object_unref(rd->in);
+    if (rd->partial != NULL) g_string_free(rd->partial, TRUE);
+    g_free(rd);
+}
+
+static void stream_read_next(StreamReader *rd);
+
+static void
+stream_read_line(GObject *source, GAsyncResult *result, gpointer ud)
+{
+    StreamReader *rd = ud;
+    g_autoptr(GError) error = NULL;
+    gsize len = 0;
+    char *line = g_data_input_stream_read_line_finish(
+        G_DATA_INPUT_STREAM(source), result, &len, &error);
+
+    if (line == NULL) {
+        /* End of stream. A final line with no trailing newline still counts. */
+        if (rd->partial != NULL && rd->partial->len > 0) {
+            StreamAppend *a = g_new0(StreamAppend, 1);
+            a->stream = rd->stream;
+            a->line = g_strdup(rd->partial->str);
+            a->from_stderr = rd->from_stderr;
+            a->lines = rd->lines + 1;
+            g_idle_add(stream_append_idle, a);
+        }
+        stream_reader_free(rd);
+        (void) error;
+        return;
+    }
+
+    /* Keep the last line of look-back for the failure summary. */
+    if (rd->tail != NULL && *rd->tail != NULL && *line != '\0') {
+        g_free(*rd->tail);
+        *rd->tail = g_strdup(line);
+    }
+
+    {
+        StreamAppend *a = g_new0(StreamAppend, 1);
+        a->stream = rd->stream;
+        a->line = g_strdup(line);
+        a->from_stderr = rd->from_stderr;
+        a->lines = ++rd->lines;
+        g_idle_add(stream_append_idle, a);
+    }
+
+    g_free(line);
+    stream_read_next(rd);
+}
+
+static void
+stream_read_next(StreamReader *rd)
+{
+    g_data_input_stream_read_line_async(rd->in, G_PRIORITY_DEFAULT, NULL,
+                                        stream_read_line, rd);
+}
+
+/* One reader per pipe. The reader owns its stream and frees itself at end of
+ * file; the caller only waits for the process. */
+static void
+cs_stream_attach(GSubprocess *proc, OutputStream *stream, char **tail_slot)
+{
+    GInputStream *out_stream = g_subprocess_get_stdout_pipe(proc);
+    GInputStream *err_stream = g_subprocess_get_stderr_pipe(proc);
+
+    if (out_stream != NULL) {
+        StreamReader *rd = g_new0(StreamReader, 1);
+        rd->stream = stream;
+        rd->in = g_data_input_stream_new(out_stream);
+        rd->partial = g_string_new("");
+        rd->from_stderr = FALSE;
+        rd->tail = tail_slot;
+        stream_read_next(rd);
+    }
+    if (err_stream != NULL) {
+        StreamReader *rd = g_new0(StreamReader, 1);
+        rd->stream = stream;
+        rd->in = g_data_input_stream_new(err_stream);
+        rd->partial = g_string_new("");
+        rd->from_stderr = TRUE;
+        rd->tail = tail_slot;
+        stream_read_next(rd);
+    }
+}
+
 static void
 cs_output_set(GtkWidget *view, const char *text)
 {
@@ -1182,10 +1510,11 @@ page_run_free(gpointer data)
 {
     PageRun *r = data;
     if (r == NULL) return;
-    if (r->proc != NULL) {
-        g_subprocess_force_exit(r->proc);
-        g_clear_object(&r->proc);
+    if (r->wait != NULL) {
+        g_subprocess_force_exit(r->wait);
+        g_clear_object(&r->wait);
     }
+    g_free(r->last_err);
     g_free(r);
 }
 
@@ -1194,47 +1523,50 @@ page_run_finished(GObject *source, GAsyncResult *result, gpointer ud)
 {
     PageRun *r = ud;
     g_autoptr(GError) error = NULL;
-    g_autofree char *out = NULL;
-    g_autofree char *errout = NULL;
-    GString *combined = g_string_new("");
+    gboolean ok = FALSE;
+    int status = 0;
+    gint64 elapsed_ms = 0;
 
     if (r == NULL) return;
 
-    if (!g_subprocess_communicate_utf8_finish(
-            G_SUBPROCESS(source), result, &out, &errout, &error)) {
+    /* g_subprocess_wait_finish only reports the exit; the output arrived
+     * through the streaming readers and is already in the pane. */
+    if (!g_subprocess_wait_finish(G_SUBPROCESS(source), result, &error)) {
         g_autofree gchar *m = g_strdup_printf(
             "error: %s", error ? error->message : "process failed");
-        cs_output_set(r->view, m);
         if (r->status != NULL)
             gtk_label_set_text(GTK_LABEL(r->status), "failed");
         append_event(r->state, m);
-        g_clear_object(&r->proc);
-        page_run_clear(r);
-        return;
+        goto done;
     }
 
-    if (out != NULL) g_string_append(combined, out);
-    if (errout != NULL && *errout != '\0') {
-        if (combined->len > 0) g_string_append(combined, "\n");
-        g_string_append(combined, errout);
+    ok = g_subprocess_get_successful(G_SUBPROCESS(source));
+    if (g_subprocess_get_if_exited(G_SUBPROCESS(source)))
+        status = g_subprocess_get_exit_status(G_SUBPROCESS(source));
+    if (r->started_us > 0) {
+        gint64 now = g_get_monotonic_time();
+        if (now > r->started_us) elapsed_ms = (now - r->started_us) / 1000;
     }
-    g_strchomp(combined->str);
-    cs_output_set(r->view, combined->str);
 
     if (r->status != NULL) {
-        gboolean ok = g_subprocess_get_successful(G_SUBPROCESS(source));
-        gtk_label_set_text(GTK_LABEL(r->status), ok ? "done" : "finished");
+        g_autofree char *label = g_strdup_printf(
+            "%s · exit %d · %" G_GINT64_FORMAT " ms",
+            ok ? "done" : "finished", status, elapsed_ms);
+        gtk_label_set_text(GTK_LABEL(r->status), label);
     }
 
     {
-        g_autofree gchar *m = g_strdup_printf(
-            "%s: %s", r->page != NULL ? r->page->name : r->spec->title,
-            combined->len > 0 ? "output ready" : "no output");
+        const char *what = r->page != NULL ? r->page->name : r->spec->title;
+        g_autofree gchar *m = ok
+            ? g_strdup_printf("%s: ok", what)
+            : g_strdup_printf("%s failed (exit %d): %s", what, status,
+                              (r->last_err != NULL && *r->last_err != '\0')
+                                  ? r->last_err : "no diagnostics");
         append_event(r->state, m);
     }
 
-    g_string_free(combined, TRUE);
-    g_clear_object(&r->proc);
+done:
+    g_clear_object(&r->wait);
     page_run_clear(r);
 }
 
@@ -1260,7 +1592,7 @@ page_verb_clicked(GtkButton *button, gpointer ud)
                           "Fill the field this action needs first", "warn");
         return;
     }
-    if (r->proc != NULL) {
+    if (r->wait != NULL) {
         show_toast_module(r->state, r->spec->id,
                           "A command from this page is still running", "warn");
         return;
@@ -1285,19 +1617,20 @@ page_verb_clicked(GtkButton *button, gpointer ud)
 
     if (r->status != NULL)
         gtk_label_set_text(GTK_LABEL(r->status), "running…");
-    cs_output_set(r->view, "running…");
+    cs_output_clear(r->view);
 
     /* A module that lost its exec bit still runs: fall back to `bash script`.
      * pkexec needs the same treatment so the fallback survives privilege. */
     gboolean need_shell = !g_file_test(r->spec->script, G_FILE_TEST_IS_EXECUTABLE);
 
+    GSubprocess *proc = NULL;
     if (privileged) {
         GPtrArray *full = g_ptr_array_new();
         g_ptr_array_add(full, (gpointer) "pkexec");
         if (need_shell) g_ptr_array_add(full, (gpointer) "bash");
         for (guint k = 0; argv[k] != NULL; k++) g_ptr_array_add(full, (gpointer) argv[k]);
         g_ptr_array_add(full, NULL);
-        r->proc = g_subprocess_newv((const char * const *) full->pdata,
+        proc = g_subprocess_newv((const char * const *) full->pdata,
             G_SUBPROCESS_FLAGS_STDOUT_PIPE | G_SUBPROCESS_FLAGS_STDERR_PIPE,
             NULL);
         g_ptr_array_unref(full);
@@ -1307,12 +1640,12 @@ page_verb_clicked(GtkButton *button, gpointer ud)
         if (need_shell) spawn_argv[n++] = "bash";
         for (guint k = 0; argv[k] != NULL && n < 9; k++) spawn_argv[n++] = argv[k];
         spawn_argv[n] = NULL;
-        r->proc = g_subprocess_newv(spawn_argv,
+        proc = g_subprocess_newv(spawn_argv,
             G_SUBPROCESS_FLAGS_STDOUT_PIPE | G_SUBPROCESS_FLAGS_STDERR_PIPE,
             NULL);
     }
 
-    if (r->proc == NULL) {
+    if (proc == NULL) {
         g_autofree char *msg = g_strdup_printf(
             "error: could not start %s (missing file, or no permission to execute it)",
             r->spec->script);
@@ -1323,8 +1656,18 @@ page_verb_clicked(GtkButton *button, gpointer ud)
 
     append_event(r->state, label != NULL ? label : verb);
     page_run_busy(r, TRUE);
-    g_subprocess_communicate_utf8_async(r->proc, NULL, NULL,
-                                        page_run_finished, r);
+
+    /* Stream both pipes into the pane as lines arrive, then wait for the
+     * exit code. The OutputStream outlives the click, so it is anchored to
+     * the view widget and freed when the page goes. */
+    r->started_us = g_get_monotonic_time();
+    r->wait = proc;
+    OutputStream *held = g_new0(OutputStream, 1);
+    held->view = r->view;
+    held->status = r->status;
+    g_object_set_data_full(G_OBJECT(r->view), "cs-stream", held, g_free);
+    cs_stream_attach(proc, held, &r->last_err);
+    g_subprocess_wait_async(proc, NULL, page_run_finished, r);
 }
 
 static void
@@ -1855,6 +2198,16 @@ static const PageSpec ae_pages[] = {
       "#CONTROLS|--list:Control catalogue|~--explain:Explain one control" },
 };
 
+/* ---- 23_persistence ---- */
+static const PageSpec persist_pages[] = {
+    { "Overview", "dialog-information-symbolic", NULL },
+    { "Footholds", "document-open-recent-symbolic",
+      "#IN THE ACCOUNT|--footholds:Scan for persistence artefacts"
+      "|~--explain:Explain one mechanism" },
+    { "Reference", "dialog-information-symbolic",
+      "#MECHANISMS|--list:Mechanism catalogue" },
+};
+
 /* ---- Master spec table ---- */
 static const ModuleSpec module_specs[] = {
     { "00_deps", S("00_deps.sh"),
@@ -1926,6 +2279,9 @@ static const ModuleSpec module_specs[] = {
     { "22_audit_evasion", S("22_audit_evasion.sh"),
       "Audit Coverage", "Which audit controls are missing, and what that hides.",
       ae_pages, G_N_ELEMENTS(ae_pages) },
+    { "23_persistence", S("23_persistence.sh"),
+      "Persistence", "Footholds that already exist, and what removes them.",
+      persist_pages, G_N_ELEMENTS(persist_pages) },
 };
 
 static const ModuleSpec *
@@ -2004,6 +2360,7 @@ static gpointer _new_vpc(AppState *s)        { return generic_module_data_new(s,
 static gpointer _new_sg(AppState *s)         { return generic_module_data_new(s, module_spec_for("20_sg_audit")); }
 static gpointer _new_db(AppState *s)         { return generic_module_data_new(s, module_spec_for("21_db_exposure")); }
 static gpointer _new_ae(AppState *s)         { return generic_module_data_new(s, module_spec_for("22_audit_evasion")); }
+static gpointer _new_persist(AppState *s)    { return generic_module_data_new(s, module_spec_for("23_persistence")); }
 
 /* ==================================================================== */
 /*  Module registry                                                      */
@@ -2095,6 +2452,8 @@ register_all_modules(void)
             module_registry_register(spec->id, e, n, _new_db);
         else if (g_strcmp0(spec->id, "22_audit_evasion") == 0)
             module_registry_register(spec->id, e, n, _new_ae);
+        else if (g_strcmp0(spec->id, "23_persistence") == 0)
+            module_registry_register(spec->id, e, n, _new_persist);
     }
 }
 
@@ -2371,8 +2730,8 @@ create_dashboard(AppState *state)
     gtk_box_append(GTK_BOX(outer), header);
     gtk_box_append(GTK_BOX(outer), scroll);
 
-    for (guint i = 0; i < G_N_ELEMENTS(modules); i++) {
-        const ModuleDefinition *mod = &modules[i];
+    for (guint i = 0; i < module_count(); i++) {
+        const ModuleDefinition *mod = module_at(i);
         GtkWidget *button = gtk_button_new();
         GtkWidget *inner = gtk_box_new(GTK_ORIENTATION_VERTICAL, 4);
         GtkWidget *top_row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
@@ -2559,15 +2918,15 @@ create_sidebar(AppState *state)
         const char *seen[32];
         guint n_seen = 0;
 
-        for (guint m = 0; m < G_N_ELEMENTS(modules); m++) {
+        for (guint m = 0; m < module_count(); m++) {
             guint j;
             gboolean skip = FALSE;
             for (j = 0; j < n_seen; j++)
-                if (g_strcmp0(seen[j], modules[m].category) == 0) { skip = TRUE; break; }
+                if (g_strcmp0(seen[j], module_at(m)->category) == 0) { skip = TRUE; break; }
             if (skip) continue;
-            if (n_seen < 32) seen[n_seen++] = modules[m].category;
+            if (n_seen < 32) seen[n_seen++] = module_at(m)->category;
 
-            GtkWidget *category = gtk_label_new(modules[m].category);
+            GtkWidget *category = gtk_label_new(module_at(m)->category);
             gtk_widget_add_css_class(category, "sidebar-section");
             gtk_widget_set_halign(category, GTK_ALIGN_FILL);
             gtk_widget_set_hexpand(category, TRUE);
@@ -2576,12 +2935,12 @@ create_sidebar(AppState *state)
                               GINT_TO_POINTER(1));
             gtk_box_append(GTK_BOX(box), category);
 
-            for (guint k = 0; k < G_N_ELEMENTS(modules); k++) {
-                if (g_strcmp0(modules[k].category, modules[m].category) != 0) continue;
+            for (guint k = 0; k < module_count(); k++) {
+                if (g_strcmp0(module_at(k)->category, module_at(m)->category) != 0) continue;
                 GtkWidget *b = gtk_button_new();
                 GtkWidget *row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 7);
-                GtkWidget *icon = gtk_image_new_from_icon_name(modules[k].icon);
-                GtkWidget *label = gtk_label_new(modules[k].name);
+                GtkWidget *icon = gtk_image_new_from_icon_name(module_at(k)->icon);
+                GtkWidget *label = gtk_label_new(module_at(k)->name);
 
                 gtk_image_set_pixel_size(GTK_IMAGE(icon), 22);
                 gtk_label_set_ellipsize(GTK_LABEL(label), PANGO_ELLIPSIZE_END);
@@ -2591,7 +2950,7 @@ create_sidebar(AppState *state)
                 gtk_box_append(GTK_BOX(row), label);
                 gtk_button_set_child(GTK_BUTTON(b), row);
 
-                g_object_set_data(G_OBJECT(b), "module", (gpointer) &modules[k]);
+                g_object_set_data(G_OBJECT(b), "module", (gpointer) module_at(k));
                 g_object_set_data(G_OBJECT(b), "row-label", label);
                 g_signal_connect(b, "clicked",
                                    G_CALLBACK(open_module_clicked), state);
@@ -2752,9 +3111,9 @@ jump_clicked(GtkButton *b, gpointer ud)
     AppState *state = ud;
     const char *id = g_object_get_data(G_OBJECT(b), "jump-id");
     if (id == NULL) return;
-    for (guint i = 0; i < G_N_ELEMENTS(modules); i++)
-        if (g_strcmp0(modules[i].id, id) == 0) {
-            open_module(state, &modules[i]);
+    for (guint i = 0; i < module_count(); i++)
+        if (g_strcmp0(module_at(i)->id, id) == 0) {
+            open_module(state, module_at(i));
             return;
         }
 }
@@ -2786,36 +3145,152 @@ session_refresh_clicked(GtkButton *b, gpointer ud)
     show_toast(state, "Session refresh requested");
 }
 
+/* Provider state, shortened to something a 22-px badge can hold. */
+static const char *
+session_state_short(const char *state)
+{
+    if (state == NULL) return "—";
+    if (g_strcmp0(state, "creds-present") == 0) return "ready";
+    if (g_strcmp0(state, "creds-missing") == 0) return "no creds";
+    if (g_strcmp0(state, "creds-invalid") == 0) return "rejected";
+    if (g_strcmp0(state, "tool-missing") == 0) return "no tool";
+    return state;
+}
+
+/* ARN tail: arn:aws:sts::1234:assumed-role/Admin/ops -> ops */
+static const char *
+session_identity_tail(const char *arn)
+{
+    if (arn == NULL || *arn == '\0') return "—";
+    const char *slash = strrchr(arn, '/');
+    return (slash != NULL && slash[1] != '\0') ? slash + 1 : arn;
+}
+
+static void
+session_apply_kv(AppState *state, GHashTable *kv)
+{
+    const char *account  = g_hash_table_lookup(kv, "aws_account");
+    const char *region   = g_hash_table_lookup(kv, "aws_region");
+    const char *identity = g_hash_table_lookup(kv, "aws_user");
+    const char *state_s  = g_hash_table_lookup(kv, "aws_state");
+    const char *inv_rows = g_hash_table_lookup(kv, "inventory_rows");
+    const char *inv_ts   = g_hash_table_lookup(kv, "inventory_ts");
+
+    if (state->session_account)
+        gtk_label_set_text(GTK_LABEL(state->session_account),
+                           account && *account ? account : "—");
+    if (state->session_region)
+        gtk_label_set_text(GTK_LABEL(state->session_region),
+                           region && *region ? region : "—");
+    if (state->session_identity)
+        gtk_label_set_text(GTK_LABEL(state->session_identity),
+                           session_identity_tail(identity));
+
+    if (state->session_badge) {
+        /* one badge, naming every provider that actually authenticated */
+        static const struct { const char *key; const char *label; } provs[] = {
+            { "aws_state",    "aws" },
+            { "gcloud_state", "gcp" },
+            { "azure_state",  "az"  },
+            { "doctl_state",  "do"  },
+            { "oci_state",    "oci" },
+            { "k8s_state",    "k8s" },
+        };
+        g_autoptr(GString) badge = g_string_new(NULL);
+        for (guint i = 0; i < G_N_ELEMENTS(provs); i++) {
+            const char *st = g_hash_table_lookup(kv, provs[i].key);
+            if (g_strcmp0(st, "creds-present") == 0) {
+                if (badge->len > 0) g_string_append_c(badge, '+');
+                g_string_append(badge, provs[i].label);
+            }
+        }
+        if (badge->len == 0 && state_s != NULL)
+            g_string_append(badge, session_state_short(state_s));
+        gtk_label_set_text(GTK_LABEL(state->session_badge),
+                           badge->len > 0 ? badge->str : "no access");
+
+        /* The row of per-provider states under the badge: what each one
+         * reports, even when it is missing — absence is a fact here. */
+        if (state->session_last_scan != NULL) {
+            g_autoptr(GString) line = g_string_new(NULL);
+            if (inv_rows != NULL && *inv_rows != '\0')
+                g_string_append_printf(line, "%s rows", inv_rows);
+            if (inv_ts != NULL && *inv_ts != '\0') {
+                if (line->len > 0) g_string_append(line, " · ");
+                g_string_append(line, inv_ts);
+            }
+            if (line->len == 0) g_string_append(line, "no scan yet");
+            gtk_label_set_text(GTK_LABEL(state->session_last_scan), line->str);
+        }
+    }
+}
+
 static gboolean
 session_refresh_idle(gpointer ud)
 {
     AppState *state = ud;
-    const char *argv[] = { SCRIPT("06_role_chains.sh"), "--whoami", NULL };
+    g_autofree gchar *root = g_strdup(cs_root());
+    g_autofree gchar *launcher = g_build_filename(root, "cloudsting.sh", NULL);
+
+    gpointer proc = NULL;
     g_autoptr(GError) error = NULL;
-    GSubprocess *p = g_subprocess_newv(argv,
-        G_SUBPROCESS_FLAGS_STDOUT_PIPE | G_SUBPROCESS_FLAGS_STDERR_SILENCE,
-        &error);
-    if (p == NULL) return G_SOURCE_REMOVE;
+
+    if (g_file_test(launcher, G_FILE_TEST_IS_EXECUTABLE)) {
+        const char *argv[] = { launcher, "session", "--tsv", NULL };
+        proc = g_subprocess_newv(argv,
+            G_SUBPROCESS_FLAGS_STDOUT_PIPE | G_SUBPROCESS_FLAGS_STDERR_SILENCE,
+            &error);
+    }
+    /* Fallback: the module that mints the identity, read directly. */
+    if (proc == NULL) {
+        g_clear_error(&error);
+        const char *argv[] = { SCRIPT("06_role_chains.sh"), "--whoami", NULL };
+        proc = g_subprocess_newv(argv,
+            G_SUBPROCESS_FLAGS_STDOUT_PIPE | G_SUBPROCESS_FLAGS_STDERR_SILENCE,
+            &error);
+    }
+    if (proc == NULL) {
+        g_warning("session: %s", error->message);
+        state->session_last_refresh = g_get_real_time();
+        return G_SOURCE_REMOVE;
+    }
 
     g_autofree gchar *out = NULL;
     g_autofree gchar *err = NULL;
-    if (g_subprocess_communicate_utf8(p, NULL, NULL, &out, &err, &error)) {
+    if (g_subprocess_communicate_utf8(proc, NULL, NULL, &out, &err, &error)) {
+        GHashTable *kv = g_hash_table_new_full(g_str_hash, g_str_equal,
+                                               g_free, g_free);
         if (out != NULL) {
             g_auto(GStrv) lines = g_strsplit(out, "\n", -1);
             for (guint i = 0; lines[i] != NULL; i++) {
-                g_auto(GStrv) kv = g_strsplit(lines[i], "\t", 2);
-                if (g_strv_length(kv) != 2) continue;
-                if (g_strcmp0(kv[0], "account") == 0 && state->session_account)
-                    gtk_label_set_text(GTK_LABEL(state->session_account), kv[1]);
-                else if (g_strcmp0(kv[0], "user") == 0 && state->session_identity)
-                    gtk_label_set_text(GTK_LABEL(state->session_identity), kv[1]);
+                if (*lines[i] == '\0') continue;
+                g_auto(GStrv) pair = g_strsplit(lines[i], "\t", 2);
+                if (g_strv_length(pair) != 2) continue;
+                g_hash_table_insert(kv, g_strdup(pair[0]), g_strdup(pair[1]));
             }
-            if (state->session_badge)
-                gtk_label_set_text(GTK_LABEL(state->session_badge),
-                                   "AWS");
         }
+        /* `06 --whoami` names its keys account/user, the launcher's session
+         * verb names them aws_account/aws_user; accept both. */
+        if (!g_hash_table_contains(kv, "aws_account")) {
+            const char *a = g_hash_table_lookup(kv, "account");
+            if (a != NULL) g_hash_table_insert(kv, g_strdup("aws_account"), g_strdup(a));
+        }
+        if (!g_hash_table_contains(kv, "aws_user")) {
+            const char *u = g_hash_table_lookup(kv, "user");
+            if (u != NULL) g_hash_table_insert(kv, g_strdup("aws_user"), g_strdup(u));
+        }
+        if (!g_hash_table_contains(kv, "aws_region")) {
+            const char *r = g_hash_table_lookup(kv, "region");
+            if (r != NULL) g_hash_table_insert(kv, g_strdup("aws_region"), g_strdup(r));
+        }
+        if (!g_hash_table_contains(kv, "aws_state")) {
+            const char *sst = g_hash_table_lookup(kv, "state");
+            if (sst != NULL) g_hash_table_insert(kv, g_strdup("aws_state"), g_strdup(sst));
+        }
+        session_apply_kv(state, kv);
+        g_hash_table_unref(kv);
     }
-    g_object_unref(p);
+    g_object_unref(proc);
     state->session_last_refresh = g_get_real_time();
     return G_SOURCE_REMOVE;
 }
@@ -3328,6 +3803,11 @@ activate(GtkApplication *app, gpointer user_data)
         return;
     }
 
+    /* Module metadata lives in data/registry.tsv, not in this binary. Load
+     * it through the launcher before anything draws a tile or a sidebar
+     * row, so adding a module means editing the registry only. */
+    module_table = module_table_load();
+
     AppState *state = g_new0(AppState, 1);
     live_state = state;
     state->application = app;
@@ -3445,9 +3925,9 @@ activate(GtkApplication *app, gpointer user_data)
                 g_autofree gchar *k = g_strdup_printf("tab_%d", i);
                 g_autofree gchar *id = g_key_file_get_string(kf, "session", k, NULL);
                 if (id != NULL && *id != '\0') {
-                    for (guint j = 0; j < G_N_ELEMENTS(modules); j++) {
-                        if (g_strcmp0(modules[j].id, id) == 0) {
-                            open_module(state, &modules[j]);
+                    for (guint j = 0; j < module_count(); j++) {
+                        if (g_strcmp0(module_at(j)->id, id) == 0) {
+                            open_module(state, module_at(j));
                             break;
                         }
                     }
@@ -3462,8 +3942,7 @@ activate(GtkApplication *app, gpointer user_data)
                      G_CALLBACK(window_close_request), state);
 
     append_event(state, "Native cloudsting GUI initialised");
-    append_event(state, g_strdup_printf("Loaded %d module definitions",
-                                        (int) G_N_ELEMENTS(modules)));
+    append_event(state, g_strdup_printf("Loaded %u modules from registry", module_count()));
 
     install_shortcuts(state);
     show_splash(state);

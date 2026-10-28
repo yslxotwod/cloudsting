@@ -1,0 +1,8 @@
+#desc: API surface — secrets in a tree, spec analysis, JWT and auth families
+# Needs a path or a URL; nothing here guesses one.
+require TARGET
+module 08 --scan "$TARGET"
+module 01 --list-formats
+module 44 --list
+module 62 --versions
+continue

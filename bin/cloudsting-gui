@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+# bin/cloudsting-gui — launch the GTK4 viewer against this checkout
+#
+# The GUI is built by native/meson.build into native/build/cloudsting. It
+# shells the modules and reads the registry through the launcher, so it must
+# know the root before it draws a single tile.
+set -Eeuo pipefail
+
+self="${BASH_SOURCE[0]}"
+while [[ -L "$self" ]]; do
+    dir="$(cd -P "$(dirname "$self")" && pwd)"
+    self="$(readlink "$self")"
+    [[ "$self" != /* ]] && self="$dir/$self"
+done
+root="$(cd -P "$(dirname "$self")/.." && pwd)"
+
+bin="$root/native/build/cloudsting"
+if [[ ! -x "$bin" ]]; then
+    printf 'cloudsting-gui: not built yet\n' >&2
+    printf '  build it:  meson setup %s/native/build %s/native && ninja -C %s/native/build\n' \
+        "$root" "$root" "$root" >&2
+    exit 3
+fi
+
+export CLOUDSTING_ROOT="$root"
+export CLOUDSTING_LOOT="${CLOUDSTING_LOOT:-$root/loot}"
+export CLOUDSTING_STATE="${CLOUDSTING_STATE:-$root/state}"
+exec "$bin" "$@"
