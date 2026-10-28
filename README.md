@@ -414,6 +414,8 @@ standalone, carries its own `--selftest`, and writes TSV.
 | `52_rate_limit` | Forwarding-header rotation against a limit that trusts the header | 48 checks |
 | `53_injection` | A value the interpreter reads as code — SQL, NoSQL, command, template, LDAP and XPath | 64 checks |
 | `54_ssrf` | Makes a server fetch metadata, loopback or a local file, and proves it by content | 43 checks |
+| `56_grpc` | Reflection, method auth and field confusion — speaks the protobuf framing itself | 69 checks |
+| `57_websocket` | Handshake auth, per-message auth and CSWSH — the origin check is the whole guard | 56 checks |
 | `59_smuggling` | The front end and the back end disagree about how much of the stream is this request | 45 checks |
 | `61_cors` | Origin reflection, null origin and regex bypass — with the cookie riding along | 52 checks |
 | `68_graphql_dos` | Depth, aliases, batching and fragments — the curve between a cheap query and a ruinous one | 55 checks |
@@ -481,6 +483,10 @@ Each module's own `--help` is the authority; this is the map.
                      --payloads --selftest --sqli --ssti --status-tsv --xpath
 54_ssrf              --callback --check --help --list --menu --params --parse --probe --save
                      --selftest --status-tsv --sweep --targets --vendors
+56_grpc              --auth --codes --describe --discover --fuzz --grpc-status --help --list
+                     --menu --payloads --port-scan --proto --reflect --selftest --services --status-tsv
+57_websocket         --auth --cswsh --discover --frames --fuzz --handshake --help --list --messages
+                     --menu --origins --paths --payloads --selftest --status-tsv
 59_smuggling         --clcl --clte --desync --downgrade --framing --h2cl --h2te --help --list
                      --menu --probe --selftest --status-tsv --te --teobfusc --techniques
 61_cors              --check --creds --headers --help --list --menu --methods --null --origins

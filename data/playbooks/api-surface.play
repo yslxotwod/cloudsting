@@ -43,3 +43,12 @@ module 61 --origins $TARGET
 module 68 --techniques
 module 68 --rungs
 module 68 --probe $TARGET
+
+# a socket is an HTTP upgrade followed by frames, so the handshake is the only
+# part an HTTP tool sees — the origin check is the whole CSWSH guard
+module 57 --paths
+module 57 --origins
+
+# a gRPC endpoint that answers reflection hands out its own service catalogue
+module 56 --codes
+module 56 --payloads

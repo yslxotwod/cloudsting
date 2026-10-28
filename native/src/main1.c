@@ -209,6 +209,12 @@ static const ModuleDefinition module_fallback[] = {
     { "64_file_upload",   "File Upload",     "WEBAPI",
       "document-send-symbolic",
       "The extension and content-type matrix" },
+    { "56_grpc",          "gRPC / Protobuf", "WEBAPI",
+      "network-server-symbolic",
+      "Reflection, method auth and protobuf field confusion" },
+    { "57_websocket",     "WebSocket",     "WEBAPI",
+      "network-wired-symbolic",
+      "Handshake auth, message auth and cross-site hijacking" },
     { "76_debug_endpoints", "Debug Endpoints", "SURFACE",
       "utilities-system-monitor-symbolic",
       "Health, actuator, docs and env endpoints" },
@@ -2393,6 +2399,54 @@ static const PageSpec graphqldos_pages[] = {
       "|--help:Usage", "68_graphql_dos.sh" },
 };
 
+/* 56_grpc */
+static const PageSpec grpc_pages[] = {
+    { "Overview", "dialog-information-symbolic", "56_grpc.sh" },
+    { "Discover", "network-server-symbolic",
+      "#IS THIS A gRPC ENDPOINT AT ALL"
+      "|~--grpc-status:Health check on the given port"
+      "|~--port-scan:Which of the usual ports answer"
+      "|~--discover:Ports that speak gRPC, with scheme", "56_grpc.sh" },
+    { "Reflection", "view-list-symbolic",
+      "#THE SCHEMA IS THE PRIZE"
+      "|~--reflect:Does reflection answer without credentials"
+      "|~--services:Every service in the descriptor dump"
+      "|~--describe:One service, its methods and their verbs"
+      "|~--proto:Keep the descriptor bytes for a reader"
+      "|--codes:gRPC status codes and what each one proves", "56_grpc.sh" },
+    { "Methods", "system-users-symbolic",
+      "#DOES THE METHOD ANSWER WITHOUT A TOKEN"
+      "|~--auth:Anonymous against authenticated, one method", "56_grpc.sh" },
+    { "Fields", "dialog-warning-symbolic",
+      "#WHAT THE WIRE FORMAT PERMITS"
+      "|~--fuzz:Field confusion against one method"
+      "|--payloads:The confusion table"
+      "|--list:Every technique, by where the mistake lives", "56_grpc.sh" },
+};
+
+/* 57_websocket */
+static const PageSpec websocket_pages[] = {
+    { "Overview", "dialog-information-symbolic", "57_websocket.sh" },
+    { "Discover", "network-wired-symbolic",
+      "#WHERE A SOCKET LIVES"
+      "|~--discover:Which path answers an upgrade"
+      "|--paths:The path table", "57_websocket.sh" },
+    { "Handshake", "dialog-password-symbolic",
+      "#THE ONLY THING HTTP SEES"
+      "|~--handshake:One upgrade, headers and verdict"
+      "|~--auth:Does the socket open with no credential", "57_websocket.sh" },
+    { "Cross-Site", "dialog-warning-symbolic",
+      "#THE BROWSER SENDS THE COOKIE FOR YOU"
+      "|~--cswsh:Every origin shape a server may accept"
+      "|--origins:The origin table"
+      "|--frames:The RFC 6455 opcodes", "57_websocket.sh" },
+    { "Messages", "document-open-recent-symbolic",
+      "#THE SMALLER HALF OF THE PROBLEM"
+      "|~--messages:Open the socket and read what it pushes"
+      "|~--fuzz:Message-level payloads"
+      "|--payloads:The payload table", "57_websocket.sh" },
+};
+
 /* 44_jwt */
 static const PageSpec jwt_pages[] = {
     { "Overview", "dialog-information-symbolic", "44_jwt.sh" },
@@ -2751,6 +2805,12 @@ static const ModuleSpec module_specs[] = {
     { "62_version_bypass", S("62_version_bypass.sh"),
       "Versioning Bypass", "The old version answers while the new one is locked.",
       version_pages, G_N_ELEMENTS(version_pages) },
+    { "56_grpc", S("56_grpc.sh"),
+      "gRPC / Protobuf", "Reflection, method auth and field confusion — the framing itself.",
+      grpc_pages, G_N_ELEMENTS(grpc_pages) },
+    { "57_websocket", S("57_websocket.sh"),
+      "WebSocket", "Handshake auth, per-message auth and CSWSH — the origin check is the whole guard.",
+      websocket_pages, G_N_ELEMENTS(websocket_pages) },
     { "68_graphql_dos", S("68_graphql_dos.sh"),
       "GraphQL Cost", "Depth, aliases and batching — the gap between a cheap query and a ruinous one.",
       graphqldos_pages, G_N_ELEMENTS(graphqldos_pages) },
