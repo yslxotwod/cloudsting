@@ -70,3 +70,8 @@ module 60 --params
 # exactly like a correctly paginated one
 module 63 --params
 module 63 --verdicts
+
+# a deserializer that rebuilt our object says so by answering where it should
+# have refused — the control carries a body of the format it claimed to want
+module 65 --formats
+module 65 --scan $TARGET

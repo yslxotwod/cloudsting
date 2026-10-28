@@ -425,6 +425,7 @@ standalone, carries its own `--selftest`, and writes TSV.
 | `68_graphql_dos` | Depth, aliases, batching and fragments — the curve between a cheap query and a ruinous one | 55 checks |
 | `62_version_bypass` | The old version answers while the new one is locked | 38 checks |
 | `64_file_upload` | Walks the extension and content-type matrix an upload filter forgets | 53 checks |
+| `65_deserialization` | The object the server rebuilt — a payload that is a data structure, not a string | 55 checks |
 
 ### Verb reference
 
@@ -503,6 +504,8 @@ Each module's own `--help` is the authority; this is the map.
                      --polyglot --probe --selftest --status-tsv --sweep --types
 63_pagination       --cursor --help --inject --limits --list --menu --params
                     --probe --selftest --status-tsv --verdicts --walk
+65_deserialization  --check --detect --formats --gadgets --help --list --markers
+                    --menu --payloads --probe --scan --selftest --status-tsv
 60_resp_smuggle     --cache --headers --help --leak --list --menu --params
                     --probe --reflect --selftest --split --status-tsv --vectors
 58_sse              --auth --cors --events --help --inject --list --menu --paths

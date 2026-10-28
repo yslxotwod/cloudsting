@@ -227,6 +227,9 @@ static const ModuleDefinition module_fallback[] = {
     { "57_websocket",     "WebSocket",     "WEBAPI",
       "network-wired-symbolic",
       "Handshake auth, message auth and cross-site hijacking" },
+    { "65_deserialization", "Deserialization", "WEBAPI",
+      "application-x-executable-symbolic",
+      "A payload that is a data structure, and a server that rebuilds it" },
     { "76_debug_endpoints", "Debug Endpoints", "SURFACE",
       "utilities-system-monitor-symbolic",
       "Health, actuator, docs and env endpoints" },
@@ -2534,6 +2537,30 @@ static const PageSpec rebind_pages[] = {
       "|--addresses:The addresses a rebind lands on", "27_rebinding.sh" },
 };
 
+/* 65_deserialization */
+static const PageSpec deser_pages[] = {
+    { "Overview", "dialog-information-symbolic", "65_deserialization.sh" },
+    { "Formats", "document-open-symbolic",
+      "#WHAT THE SERVER WILL REBUILD"
+      "|--formats:The magic, the format, where it appears"
+      "|--markers:The strings that prove it parsed our stream"
+      "|--gadgets:Library names that make it exploitable", "65_deserialization.sh" },
+    { "Sweep", "system-search-symbolic",
+      "#SEND A STREAM"
+      "|~--probe:Does the endpoint take a body at all"
+      "|~--detect:Is there a serialized stream here"
+      "|~--check:One family, control first"
+      "|~--scan:Every family, one control each", "65_deserialization.sh" },
+    { "Payloads", "document-send-symbolic",
+      "#THE SHAPES"
+      "|--payloads:Every payload with what it proves"
+      "|~--payloads:One family only", "65_deserialization.sh" },
+    { "Reference", "help-about-symbolic",
+      "|--list:Formats and their magic"
+      "|--status-tsv:Module status"
+      "|--help:Usage", "65_deserialization.sh" },
+};
+
 /* 44_jwt */
 static const PageSpec jwt_pages[] = {
     { "Overview", "dialog-information-symbolic", "44_jwt.sh" },
@@ -2916,6 +2943,9 @@ static const ModuleSpec module_specs[] = {
     { "64_file_upload", S("64_file_upload.sh"),
       "File Upload", "The extension and content-type matrix an upload filter forgets.",
       upload_pages, G_N_ELEMENTS(upload_pages) },
+    { "65_deserialization", S("65_deserialization.sh"),
+      "Deserialization", "The object the server rebuilt — a payload that is a data structure, not a string.",
+      deser_pages, G_N_ELEMENTS(deser_pages) },
     { "76_debug_endpoints", S("76_debug_endpoints.sh"),
       "Debug Endpoints", "Health, actuator, docs and env endpoints that answer when they should not.",
       debug_pages, G_N_ELEMENTS(debug_pages) },
