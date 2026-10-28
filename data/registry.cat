@@ -1,5 +1,4 @@
 00	SETUP	0	Dependencies	What this box has, what it is missing, and what is actually authenticated
-id	category	phase	title	mission
 01	CREDS	1	Credential Validator	Identify a credential from its shape, validate it offline, probe it live — cloud keys and 23 telco vendor auth oracles
 02	SURFACE	1	Cloud Asset Inventory	Enumerate what the account actually holds across providers
 03	STORAGE	1	Cloud Bucket Enumeration	Storage buckets, their permissions, and their public exposure
@@ -35,4 +34,5 @@ id	category	phase	title	mission
 61	WEBAPI	8	CORS Abuse	The browser sends the cookie for you; the origin check is the whole guard
 62	WEBAPI	8	API Versioning Bypass	The old version answers while the new one is locked
 64	WEBAPI	8	File Upload Exploit	Walks the extension and content-type matrix an upload filter forgets
+68	WEBAPI	6	GraphQL Query Cost	Depth, aliases, batching and fragments — the curve between a cheap query and a ruinous one
 76	SURFACE	1	Debug Endpoint Discovery	Health, actuator, docs and env endpoints that answer when they should not

@@ -167,6 +167,9 @@ static const ModuleDefinition module_fallback[] = {
     { "45_oauth",         "OAuth",           "WEBAPI",
       "emblem-locked-symbolic",
       "The flow is the attack surface" },
+    { "68_graphql_dos",   "GraphQL Cost",    "WEBAPI",
+      "network-server-symbolic",
+      "Depth, alias and batch cost against a measured control" },
     { "46_key_harvest",   "Key Harvest",     "SURFACE",
       "edit-find-symbolic",
       "Keys and tokens in pages, bundles and headers" },
@@ -2271,333 +2274,351 @@ static const PageSpec imds_pages[] = {
       "|#FROM A URL|~--check:Check a url|~--token:Fetch a v2 token"
       "|~--exec:Exec through SSRF|~--userdata:Read user-data"
       "|#ANALYSE|--keys:Instance identity keys|--creds:Dump every credential",
-      NULL, "09_imds.sh" },
+      "09_imds.sh" },
     { "Reference", "dialog-information-symbolic",
       "#TABLES|--endpoints:Endpoint catalogue|--techniques:Technique catalogue"
-      "|--list:All verbs", NULL, "09_imds.sh" },
+      "|--list:All verbs", "09_imds.sh" },
 };
 
 /* 12_serverless — what 12_lambda_dump and 13_serverless_recon used to be. */
 static const PageSpec serverless_pages[] = {
     { "Overview", "dialog-information-symbolic",
       "#WHAT IS THERE|--list:List functions across providers"
-      "|#SOURCE|--urls:Function invoke urls", NULL, "12_serverless.sh" },
+      "|#SOURCE|--urls:Function invoke urls", "12_serverless.sh" },
     { "Functions", "document-open-recent-symbolic",
       "#ONE FUNCTION|~--env:Read its environment|~--dump:Pull its configuration"
       "|~--download:Download its code|#ALL OF THEM|--download-all:Download everything",
-      NULL, "12_serverless.sh" },
+      "12_serverless.sh" },
     { "Invoke", "system-run-symbolic",
       "#REACH IT|~~--invoke:Invoke one function|--all:Full sweep",
-      NULL, "12_serverless.sh" },
+      "12_serverless.sh" },
 };
 
 /* 16_kubernetes — what 16_k8s_attack_surface and 17_k8s_secrets used to be. */
 static const PageSpec kubernetes_pages[] = {
-    { "Overview", "dialog-information-symbolic", NULL, "16_kubernetes.sh" },
+    { "Overview", "dialog-information-symbolic", "16_kubernetes.sh" },
     { "Clusters", "document-open-recent-symbolic",
       "#WHERE|--clusters:Reachable clusters|--kubeconfig:Kubeconfig context"
-      "|#INSIDE|--nodes:Nodes|--pods:Pods", NULL, "16_kubernetes.sh" },
+      "|#INSIDE|--nodes:Nodes|--pods:Pods", "16_kubernetes.sh" },
     { "Secrets", "dialog-password-symbolic",
       "#ACCESS|--secrets:Secrets|--sa-tokens:Service account tokens"
       "|~--decode:Decode one secret|--extract:Extract and decode all",
-      NULL, "16_kubernetes.sh" },
+      "16_kubernetes.sh" },
     { "Abuse", "dialog-warning-symbolic",
       "#RBAC|--rbac:Who may do what|--abuse:Escalation checklist",
-      NULL, "16_kubernetes.sh" },
+      "16_kubernetes.sh" },
 };
 
 /* 18_network — what 18_cloud_dns, 19_vpc_map, 20_sg_audit and 04_takeover
    used to be. */
 static const PageSpec network_pages[] = {
-    { "Overview", "dialog-information-symbolic", NULL, "18_network.sh" },
+    { "Overview", "dialog-information-symbolic", "18_network.sh" },
     { "Naming", "document-open-recent-symbolic",
       "#ZONES|--zones:Hosted zones|~--records:Records in a zone"
       "|~--resolve:Resolve one name|#BAD RECORDS|~--dangling:Takeover-prone CNAMEs"
       "|~--takeover:Full takeover pass|~--claim:Check one host"
-      "|~--axfr:Zone transfer", NULL, "18_network.sh" },
+      "|~--axfr:Zone transfer", "18_network.sh" },
     { "Topology", "network-wired-symbolic",
       "#NETWORKS|--vpcs:VPCs and networks|--subnets:Subnets"
       "|--routes:Route tables|--gateways:Gateways|--map:Draw the map",
-      NULL, "18_network.sh" },
+      "18_network.sh" },
     { "Exposure", "dialog-warning-symbolic",
       "#FIREWALL|--rules:Security group rules|--audit:World-open, graded by port"
       "|#REFERENCE|--fingerprints:Takeover fingerprints",
-      NULL, "18_network.sh" },
+      "18_network.sh" },
 };
 
 /* 39_tenant_enum */
 static const PageSpec tenant_pages[] = {
-    { "Overview", "dialog-information-symbolic", NULL, "39_tenant_enum.sh" },
+    { "Overview", "dialog-information-symbolic", "39_tenant_enum.sh" },
     { "Tenant", "document-open-recent-symbolic",
       "#THE ORG|~--tenant:Tenant id and federation realm"
       "|#NAMESPACES|~--buckets:Bucket namespaces|~--projects:GCP projects"
       "|~--azure:Azure storage accounts|~--apis:Resolving subdomains",
-      NULL, "39_tenant_enum.sh" },
+      "39_tenant_enum.sh" },
     { "Certificates", "security-high-symbolic",
       "#CT LOGS|~--crt:Names from certificate transparency"
-      "|#REVERSE DNS|~~--ptr:Sweep a range", NULL, "39_tenant_enum.sh" },
+      "|#REVERSE DNS|~~--ptr:Sweep a range", "39_tenant_enum.sh" },
 };
 
 /* 41_api_discovery */
 static const PageSpec apidisc_pages[] = {
-    { "Overview", "dialog-information-symbolic", NULL, "41_api_discovery.sh" },
+    { "Overview", "dialog-information-symbolic", "41_api_discovery.sh" },
     { "Discover", "document-open-recent-symbolic",
       "#ENDPOINTS|~--discover:Brute paths against a measured baseline"
       "|~--spec:Find the spec document|--wordlist:The wordlist it sends",
-      NULL, "41_api_discovery.sh" },
+      "41_api_discovery.sh" },
     { "Methods", "system-run-symbolic",
-      "#VERBS|~~--methods:Which verbs one path answers", NULL, "41_api_discovery.sh" },
+      "#VERBS|~~--methods:Which verbs one path answers", "41_api_discovery.sh" },
 };
 
 /* 42_openapi */
 static const PageSpec openapi_pages[] = {
-    { "Overview", "dialog-information-symbolic", NULL, "42_openapi.sh" },
+    { "Overview", "dialog-information-symbolic", "42_openapi.sh" },
     { "Spec", "document-open-recent-symbolic",
       "#FIND IT|~--find:Probe well-known spec paths and vendor doc trees"
-      "|~--analyze:Read a spec file or url", NULL, "42_openapi.sh" },
+      "|~--analyze:Read a spec file or url", "42_openapi.sh" },
     { "Report", "view-list-symbolic",
       "#WHAT IT ADMITS|--auth:Operations with no usable security"
       "|--endpoints:Every operation|--params:Url-taking parameters"
-      "|~--diff:Two specs, added and removed", NULL, "42_openapi.sh" },
+      "|~--diff:Two specs, added and removed", "42_openapi.sh" },
 };
 
 /* 43_graphql */
 static const PageSpec graphql_pages[] = {
-    { "Overview", "dialog-information-symbolic", NULL, "43_graphql.sh" },
+    { "Overview", "dialog-information-symbolic", "43_graphql.sh" },
     { "Schema", "document-open-recent-symbolic",
       "#INTROSPECT|~--find:Probe graph paths|~--introspect:Pull the schema"
-      "|~--schema:Who may query what", NULL, "43_graphql.sh" },
+      "|~--schema:Who may query what", "43_graphql.sh" },
     { "Surface", "view-list-symbolic",
       "#FIELDS|~--queries:Root fields|~--fields:Field graph"
-      "|~--depth:Deepest path|~--check:One endpoint", NULL, "43_graphql.sh" },
+      "|~--depth:Deepest path|~--check:One endpoint", "43_graphql.sh" },
+};
+
+/* 68_graphql_dos */
+static const PageSpec graphqldos_pages[] = {
+    { "Overview", "dialog-information-symbolic", "68_graphql_dos.sh" },
+    { "Curve", "view-list-symbolic",
+      "#THE COST CURVE|~--probe:Control and every rung"
+      "|~--cost:The same curve as a table", "68_graphql_dos.sh" },
+    { "Shapes", "document-open-recent-symbolic",
+      "#ONE SHAPE AT A TIME"
+      "|~--depth:Nested fields|~--aliases:One field, many names"
+      "|~--batched:Many operations, one body"
+      "|~--fragment:A fragment that spreads into itself"
+      "|~--directive:@include on a heavy field"
+      "|~--mutate:Alias storm on a mutation — writes", "68_graphql_dos.sh" },
+    { "Reference", "help-about-symbolic",
+      "--techniques:Every cost shape|--rungs:The probe ladder"
+      "|--help:Usage", "68_graphql_dos.sh" },
 };
 
 /* 44_jwt */
 static const PageSpec jwt_pages[] = {
-    { "Overview", "dialog-information-symbolic", NULL, "44_jwt.sh" },
+    { "Overview", "dialog-information-symbolic", "44_jwt.sh" },
     { "Inspect", "document-open-recent-symbolic",
       "#A TOKEN|--inspect:Header, claims and grade|--claims:Claims only"
-      "|--keys:PEM keys it can use", NULL, "44_jwt.sh" },
+      "|--keys:PEM keys it can use", "44_jwt.sh" },
     { "Attack", "dialog-warning-symbolic",
       "#FORGE|~--forge:Forge with a chosen scheme|~--kid:kid injection"
       "|~--jku:jku injection|#BREAK|~--crack:Offline hmac crack"
-      "|~~--alg:Try alg:none and key confusion live", NULL, "44_jwt.sh" },
+      "|~~--alg:Try alg:none and key confusion live", "44_jwt.sh" },
 };
 
 /* 45_oauth — the flow is the attack surface, so the pages follow the flow
  * order: what the issuer says about itself, then each gate the flow passes. */
 static const PageSpec oauth_pages[] = {
-    { "Overview", "dialog-information-symbolic", NULL, "45_oauth.sh" },
+    { "Overview", "dialog-information-symbolic", "45_oauth.sh" },
     { "Issuer", "document-open-recent-symbolic",
       "#WHAT IT SAYS|~--discover:Read the well-known document"
       "|~--check:Discovery plus what it admits"
-      "|--paths:Every discovery path tried", NULL, "45_oauth.sh" },
+      "|--paths:Every discovery path tried", "45_oauth.sh" },
     { "Registration", "dialog-warning-symbolic",
       "#REDIRECT_URI|~~~--redirect:Endpoint, client and registered uri"
       "|--redirects:The variant table"
       "|#STATE|~~~--state:Is state a nonce or a decoration"
-      "|#CLIENT SECRET|~--pkce:Is PKCE required and is plain allowed", NULL, "45_oauth.sh" },
+      "|#CLIENT SECRET|~--pkce:Is PKCE required and is plain allowed", "45_oauth.sh" },
     { "Authorization", "network-server-symbolic",
       "#SCOPE|~~~--scope:Scopes the client never registered"
       "|#AUTH PARAMS|~~~--login-hint:prompt and login_hint behaviour"
-      "|#GRANT|~~--implicit:response_type=token still on", NULL, "45_oauth.sh" },
+      "|#GRANT|~~--implicit:response_type=token still on", "45_oauth.sh" },
     { "Token", "dialog-password-symbolic",
-      "#FINISH THE FLOW|~~--cursor:Exchange a code, then replay it", NULL, "45_oauth.sh" },
+      "#FINISH THE FLOW|~~--cursor:Exchange a code, then replay it", "45_oauth.sh" },
     { "Reference", "dialog-information-symbolic",
       "#TABLES|--tests:Every check it runs|--redirects:The redirect variants"
-      "|--paths:Discovery paths", NULL, "45_oauth.sh" },
+      "|--paths:Discovery paths", "45_oauth.sh" },
 };
 
 /* 46_key_harvest */
 static const PageSpec keyharvest_pages[] = {
-    { "Overview", "dialog-information-symbolic", NULL, "46_key_harvest.sh" },
+    { "Overview", "dialog-information-symbolic", "46_key_harvest.sh" },
     { "Harvest", "document-open-recent-symbolic",
       "#A PAGE|~--harvest:Page and every script it loads"
-      "|~--js:One bundle|~--headers:Response headers", NULL, "46_key_harvest.sh" },
+      "|~--js:One bundle|~--headers:Response headers", "46_key_harvest.sh" },
     { "Detect", "dialog-password-symbolic",
       "#LOCAL|~--detect:Scan a file or stdin|~--defang:Explain one value"
-      "|--providers:The provider table", NULL, "46_key_harvest.sh" },
+      "|--providers:The provider table", "46_key_harvest.sh" },
 };
 
 /* 47_auth_bypass */
 
 /* 48_bola */
 static const PageSpec bola_pages[] = {
-    { "Overview", "dialog-information-symbolic", NULL, "48_bola.sh" },
+    { "Overview", "dialog-information-symbolic", "48_bola.sh" },
     { "Objects", "document-open-recent-symbolic",
       "#ONE ID|~~--check:One base, one family, one id"
       "|~--matrix:Every family against one id"
       "|~~--enumerate:Walk the neighbours of a known id",
-      NULL, "48_bola.sh" },
+      "48_bola.sh" },
     { "Sweep", "view-list-symbolic",
       "#WIDE|~~--sweep:Msissn sweep across bases|~~--idlist:Generate ids to try"
-      "|#REFERENCE|--patterns:Family table", NULL, "48_bola.sh" },
+      "|#REFERENCE|--patterns:Family table", "48_bola.sh" },
 };
 
 /* 49_bfla */
 static const PageSpec bfla_pages[] = {
-    { "Overview", "dialog-information-symbolic", NULL, "49_bfla.sh" },
+    { "Overview", "dialog-information-symbolic", "49_bfla.sh" },
     { "Functions", "document-open-recent-symbolic",
       "#ONE FUNCTION|~~--check:One base, one function, one verb"
       "|~--methods:Which verbs one path answers"
-      "|~--object:Two sessions, one object", NULL, "49_bfla.sh" },
+      "|~--object:Two sessions, one object", "49_bfla.sh" },
     { "Sweep", "view-list-symbolic",
       "#WIDE|~~--sweep:Every function against one base"
       "|~~--compare:Where two sessions diverge"
-      "|#REFERENCE|--functions:Function table", NULL, "49_bfla.sh" },
+      "|#REFERENCE|--functions:Function table", "49_bfla.sh" },
 };
 
 /* 50_mass_assign */
 static const PageSpec massassign_pages[] = {
-    { "Overview", "dialog-information-symbolic", NULL, "50_mass_assign.sh" },
+    { "Overview", "dialog-information-symbolic", "50_mass_assign.sh" },
     { "Fields", "document-open-recent-symbolic",
       "#ONE FIELD|~~~--check:Class, field and readback url"
       "|#THE FORM|~~--sweep:Every field against one base"
-      "|~--shadow:Read the portal's own swagger", NULL, "50_mass_assign.sh" },
+      "|~--shadow:Read the portal's own swagger", "50_mass_assign.sh" },
     { "Reference", "dialog-information-symbolic",
       "#TABLES|--fields:Field table|--verdicts:How a verdict is reached",
-      NULL, "50_mass_assign.sh" },
+      "50_mass_assign.sh" },
 };
 
 /* 51_hpp — the parameter has one name and the server reads it twice */
 static const PageSpec hpp_pages[] = {
-    { "Overview", "dialog-information-symbolic", NULL, "51_hpp.sh" },
+    { "Overview", "dialog-information-symbolic", "51_hpp.sh" },
     { "Duplicate", "document-open-recent-symbolic",
       "#ONE PARAMETER|~~~--check:Url and parameter, every shape"
       "|~--dup:Just the plain duplicate"
-      "|#WHICH PARSER|~~--split:Attribute the fold to a class", NULL, "51_hpp.sh" },
+      "|#WHICH PARSER|~~--split:Attribute the fold to a class", "51_hpp.sh" },
     { "Encodings", "network-transmit-symbolic",
       "#SYNTAX|~~--array:Array shapes an app may flatten"
       "|~~--encoding:What a proxy splits on"
-      "|~~--smuggle:The pair a filter misses", NULL, "51_hpp.sh" },
+      "|~~--smuggle:The pair a filter misses", "51_hpp.sh" },
     { "Body", "dialog-password-symbolic",
       "#JSON AND QUERY|~~--json:Same name in both places"
-      "|~~--query:One unchallenged read", NULL, "51_hpp.sh" },
+      "|~~--query:One unchallenged read", "51_hpp.sh" },
     { "Reference", "dialog-information-symbolic",
-      "#TABLES|--params:Parameters worth planting|--list:Every vector", NULL, "51_hpp.sh" },
+      "#TABLES|--params:Parameters worth planting|--list:Every vector", "51_hpp.sh" },
 };
 
 /* 52_rate_limit */
 static const PageSpec ratelimit_pages[] = {
-    { "Overview", "dialog-information-symbolic", NULL, "52_rate_limit.sh" },
+    { "Overview", "dialog-information-symbolic", "52_rate_limit.sh" },
     { "Limit", "document-open-recent-symbolic",
-      "#WHERE IT BITES|~~--probe:Count requests to the first limit", NULL,
+      "#WHERE IT BITES|~~--probe:Count requests to the first limit",
       "52_rate_limit.sh" },
     { "Bypass", "dialog-warning-symbolic",
       "#ROTATE|~~--rotate:Control, refill, then rotate a header"
       "|~~--check:Plain versus one headered request"
       "|#REFERENCE|--headers:Header table|--modes:Header modes",
-      NULL, "52_rate_limit.sh" },
+      "52_rate_limit.sh" },
 };
 
 /* 53_injection — the value is interpreted, not stored */
 static const PageSpec injection_pages[] = {
-    { "Overview", "dialog-information-symbolic", NULL, "53_injection.sh" },
+    { "Overview", "dialog-information-symbolic", "53_injection.sh" },
     { "Sweep", "document-open-recent-symbolic",
       "#ONE PARAMETER|~~~~--check:Url, parameter, where it lands, family"
       "|#FAMILIES|~~--sqli:Boolean pair and arithmetic"
       "|~~--nosqli:Operator objects in a JSON body"
-      "|~~--cmdi:Shell metacharacters", NULL, "53_injection.sh" },
+      "|~~--cmdi:Shell metacharacters", "53_injection.sh" },
     { "Renderers", "network-transmit-symbolic",
       "#TEMPLATES|~~--ssti:Template evaluation, proved by 49"
       "|~~--ldap:Filter injection"
-      "|~~--xpath:Predicate injection", NULL, "53_injection.sh" },
+      "|~~--xpath:Predicate injection", "53_injection.sh" },
     { "Reference", "dialog-information-symbolic",
       "#TABLES|--families:What each family proves|--payloads:Every payload"
-      "|--params:Parameters worth testing", NULL, "53_injection.sh" },
+      "|--params:Parameters worth testing", "53_injection.sh" },
 };
 
 /* 54_ssrf */
 static const PageSpec ssrf_pages[] = {
-    { "Overview", "dialog-information-symbolic", NULL, "54_ssrf.sh" },
+    { "Overview", "dialog-information-symbolic", "54_ssrf.sh" },
     { "Probe", "document-open-recent-symbolic",
       "#ONE PARAMETER|~~~--probe:App url, parameter, method"
       "|~~~--check:App url, parameter, target"
       "|~~--sweep:Every parameter against one base"
-      "|~~--callback:Listen for a fetch", NULL, "54_ssrf.sh" },
+      "|~~--callback:Listen for a fetch", "54_ssrf.sh" },
     { "Reference", "dialog-information-symbolic",
       "#TABLES|--targets:Fetch targets|--params:Url-taking parameters"
       "|--vendors:Vendor oracles|~--parse:Parse a saved body"
-      "|~~--save:Keep one body", NULL, "54_ssrf.sh" },
+      "|~~--save:Keep one body", "54_ssrf.sh" },
 };
 
 /* 59_smuggling — where the front end and the back end stop agreeing */
 static const PageSpec smuggle_pages[] = {
-    { "Overview", "dialog-information-symbolic", NULL, "59_smuggling.sh" },
+    { "Overview", "dialog-information-symbolic", "59_smuggling.sh" },
     { "Sweep", "dialog-warning-symbolic",
       "#ONE HOST|~~--probe:Every framing pair against one request"
       "|#SINGLE TECHNIQUE|~~--clte:Content-Length vs Transfer-Encoding"
       "|~~--te:Transfer-Encoding first"
-      "|~~--clcl:Two Content-Length values", NULL, "59_smuggling.sh" },
+      "|~~--clcl:Two Content-Length values", "59_smuggling.sh" },
     { "HTTP/2", "network-server-symbolic",
       "#DOWNGRADE|~~--h2cl:Is Content-Length legal upstream"
       "|~~--h2te:A smuggled Transfer-Encoding"
-      "|~~--downgrade:What the edge advertises", NULL, "59_smuggling.sh" },
+      "|~~--downgrade:What the edge advertises", "59_smuggling.sh" },
     { "Timing", "document-open-recent-symbolic",
       "#THE WAIT|~~--desync:Hold a declared body open"
-      "|#PRIMER|~~--teobfusc:Every obfuscation, listed", NULL, "59_smuggling.sh" },
+      "|#PRIMER|~~--teobfusc:Every obfuscation, listed", "59_smuggling.sh" },
     { "Reference", "dialog-information-symbolic",
       "#TABLES|--techniques:What disagrees and what it wins|--framing:The raw header pairs",
-      NULL, "59_smuggling.sh" },
+      "59_smuggling.sh" },
 };
 
 /* 61_cors — the browser sends the cookie; the origin check is the guard */
 static const PageSpec cors_pages[] = {
-    { "Overview", "dialog-information-symbolic", NULL, "61_cors.sh" },
+    { "Overview", "dialog-information-symbolic", "61_cors.sh" },
     { "Check", "document-open-recent-symbolic",
       "#ONE ENDPOINT|~~--check:Every origin family against a url"
       "|#FAMILIES|~~--null:The sandboxed-iframe origin"
       "|~~~--suffix:Substring comparisons against the registered host"
-      "|~~~--regex:An allowlist that forgot to anchor", NULL, "61_cors.sh" },
+      "|~~~--regex:An allowlist that forgot to anchor", "61_cors.sh" },
     { "Credentials", "dialog-password-symbolic",
       "#THE COOKIE|~~--creds:Read and write, with credentials"
       "|~~--methods:Which verbs the preflight advertises"
-      "|~~--headers:Which headers the page may read", NULL, "61_cors.sh" },
+      "|~~--headers:Which headers the page may read", "61_cors.sh" },
     { "Proof", "dialog-warning-symbolic",
       "#THE HTML|~~--poc:Write the page that would steal the data"
       "|#REFERENCE|~--origins:The origin family table|--list:Header table",
-      NULL, "61_cors.sh" },
+      "61_cors.sh" },
 };
 
 /* 62_version_bypass */
 static const PageSpec version_pages[] = {
-    { "Overview", "dialog-information-symbolic", NULL, "62_version_bypass.sh" },
+    { "Overview", "dialog-information-symbolic", "62_version_bypass.sh" },
     { "Matrix", "document-open-recent-symbolic",
       "#THE GRID|~~--matrix:Path spellings, query and headers"
       "|~~--sweep:Every path against one base"
-      "|~~--probe:One path, every slot", NULL, "62_version_bypass.sh" },
+      "|~~--probe:One path, every slot", "62_version_bypass.sh" },
     { "Compare", "view-list-symbolic",
       "#TWO SESSIONS|~~--compare:Where an old version answers unlocked"
       "|~--normalise:Show the rewrite slots",
-      NULL, "62_version_bypass.sh" },
+      "62_version_bypass.sh" },
 };
 
 /* 64_file_upload */
 static const PageSpec upload_pages[] = {
-    { "Overview", "dialog-information-symbolic", NULL, "64_file_upload.sh" },
+    { "Overview", "dialog-information-symbolic", "64_file_upload.sh" },
     { "Filters", "document-open-recent-symbolic",
       "#EXTENSION|~~--check:Walk the extension matrix"
       "|~~--probe:The content-type axis"
       "|#CONTENT|--polyglot:A valid image carrying markup"
-      "|~--magic:Sniff one file", NULL, "64_file_upload.sh" },
+      "|~--magic:Sniff one file", "64_file_upload.sh" },
     { "Names", "view-list-symbolic",
       "#FILENAME TRICKS|~--name:Eleven names a blocklist forgets"
       "|~--sweep:Every endpoint against one base"
       "|#REFERENCE|--extensions|--types|--endpoints",
-      NULL, "64_file_upload.sh" },
+      "64_file_upload.sh" },
 };
 
 /* 76_debug_endpoints */
 static const PageSpec debug_pages[] = {
-    { "Overview", "dialog-information-symbolic", NULL, "76_debug_endpoints.sh" },
+    { "Overview", "dialog-information-symbolic", "76_debug_endpoints.sh" },
     { "Sweep", "document-open-recent-symbolic",
       "#PATH FAMILIES|~--health:Health and probes|~--actuator:Spring actuator"
       "|~--docs:Swagger and GraphiQL|~--env:Dotenv, config, git"
       "|~--telco:Operator portals|#EVERYTHING|~~--scan:One host, all families",
-      NULL, "76_debug_endpoints.sh" },
+      "76_debug_endpoints.sh" },
     { "Check", "view-list-symbolic",
       "#ONE URL|~--check:Classify one response|~--list:Path catalogue",
-      NULL, "76_debug_endpoints.sh" },
+      "76_debug_endpoints.sh" },
 };
 
 /* 47_auth_bypass — the guard is on the route, not the resource. */
@@ -2606,16 +2627,16 @@ static const PageSpec authbypass_pages[] = {
     { "Gaps", "view-list-symbolic",
       "#NO TOKEN AT ALL|~--gaps:Every protected path, plain GET"
       "|#ONE ROUTE|~~--check:Run the vector table against one path"
-      "|~--methods:The verb axis", NULL, "47_auth_bypass.sh" },
+      "|~--methods:The verb axis", "47_auth_bypass.sh" },
     { "Vectors", "document-open-recent-symbolic",
       "#SMALLER PASSES|~--headers:Gateway headers that name a path"
       "|~--case:Case fold|~--trailing:Slash, dot, semicolon"
       "|~--encoding:Percent, double and overlong|~--cgi:PHP path suffix"
       "|#THE WHOLE GRID|~--sweep:Every path times every vector"
-      "|~--probe:One full url", NULL, "47_auth_bypass.sh" },
+      "|~--probe:One full url", "47_auth_bypass.sh" },
     { "Reference", "dialog-information-symbolic",
       "#TABLES|--paths:Protected paths|--vectors:Vector catalogue|--list:All verbs",
-      NULL, "47_auth_bypass.sh" },
+      "47_auth_bypass.sh" },
 };
 
 /* ---- Master spec table ---- */
@@ -2730,6 +2751,9 @@ static const ModuleSpec module_specs[] = {
     { "62_version_bypass", S("62_version_bypass.sh"),
       "Versioning Bypass", "The old version answers while the new one is locked.",
       version_pages, G_N_ELEMENTS(version_pages) },
+    { "68_graphql_dos", S("68_graphql_dos.sh"),
+      "GraphQL Cost", "Depth, aliases and batching — the gap between a cheap query and a ruinous one.",
+      graphqldos_pages, G_N_ELEMENTS(graphqldos_pages) },
     { "64_file_upload", S("64_file_upload.sh"),
       "File Upload", "The extension and content-type matrix an upload filter forgets.",
       upload_pages, G_N_ELEMENTS(upload_pages) },

@@ -416,6 +416,7 @@ standalone, carries its own `--selftest`, and writes TSV.
 | `54_ssrf` | Makes a server fetch metadata, loopback or a local file, and proves it by content | 43 checks |
 | `59_smuggling` | The front end and the back end disagree about how much of the stream is this request | 45 checks |
 | `61_cors` | Origin reflection, null origin and regex bypass — with the cookie riding along | 52 checks |
+| `68_graphql_dos` | Depth, aliases, batching and fragments — the curve between a cheap query and a ruinous one | 55 checks |
 | `62_version_bypass` | The old version answers while the new one is locked | 38 checks |
 | `64_file_upload` | Walks the extension and content-type matrix an upload filter forgets | 53 checks |
 
@@ -488,6 +489,8 @@ Each module's own `--help` is the authority; this is the map.
                      --selftest --status-tsv --sweep --versions
 64_file_upload       --check --endpoints --extensions --help --list --magic --menu --name
                      --polyglot --probe --selftest --status-tsv --sweep --types
+68_graphql_dos       --aliases --batched --cost --depth --directive --fragment --help --list
+                     --menu --mutate --probe --rungs --selftest --status-tsv --techniques
 76_debug_endpoints   --actuator --all --check --docs --env --health --help --list --menu --scan
                      --selftest --status-tsv
 

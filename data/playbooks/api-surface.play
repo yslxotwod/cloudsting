@@ -37,3 +37,9 @@ module 59 --framing
 # credentials, a page on that origin reads the session for free
 module 61 --origins
 module 61 --origins $TARGET
+
+# cost is the last free lever: a query nobody metered will answer the same
+# question a thousand times, and the curve is what shows it
+module 68 --techniques
+module 68 --rungs
+module 68 --probe $TARGET

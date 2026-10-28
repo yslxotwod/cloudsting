@@ -593,14 +593,25 @@ cs_cmd_playbook() {
                 # shellcheck disable=SC2207
                 eval "sargs=( $argv )"
                 set -u
-                if timeout 600 bash "$script" "${sargs[@]}" <"$stdin_file" >"$out/$n-$(cs_slug "$row").tsv" 2>"$out/$n-$(cs_slug "$row").err"; then
-                    cp "$out/$n-$(cs_slug "$row").tsv" "$stdin_file"
-                    printf 'STEP_OK\t%s\n' "$n"
-                else
-                    printf 'STEP_FAIL\t%s\t%s\n' "$n" "$?"
-                    rc=1
-                    (( stop_on_fail )) && break
-                fi
+                local step_rc=0
+                timeout 600 bash "$script" "${sargs[@]}" <"$stdin_file" \
+                    >"$out/$n-$(cs_slug "$row").tsv" 2>"$out/$n-$(cs_slug "$row").err" || step_rc=$?
+                # A step that ran to completion and reported an honest "nothing
+                # here" has done its job: exit 1 is "ran, found nothing" and
+                # exit 3 is the module's own "could not reach the target", which
+                # is a fact about the target, not a broken playbook. Only a step
+                # that could not run at all — usage error (2), a crash, a
+                # timeout — stops the chain.
+                case "$step_rc" in
+                    0) cp "$out/$n-$(cs_slug "$row").tsv" "$stdin_file"
+                       printf 'STEP_OK\t%s\n' "$n" ;;
+                    1) cp "$out/$n-$(cs_slug "$row").tsv" "$stdin_file"
+                       printf 'STEP_OK\t%s\tno-findings\n' "$n" ;;
+                    3) printf 'STEP_OK\t%s\tunreachable\n' "$n" ;;
+                    *) printf 'STEP_FAIL\t%s\t%s\n' "$n" "$step_rc"
+                       rc=1
+                       (( stop_on_fail )) && break ;;
+                esac
                 ;;
             *) cs_err "playbook: unrecognised line: $line"; rc=1; (( stop_on_fail )) && break ;;
         esac
