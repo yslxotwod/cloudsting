@@ -155,6 +155,9 @@ static const ModuleDefinition module_fallback[] = {
     { "58_sse",           "Server-Sent Events", "WEBAPI",
       "document-open-recent-symbolic",
       "A stream nobody authenticated, judged per event" },
+    { "60_resp_smuggle",  "Response Smuggling", "WEBAPI",
+      "document-open-recent-symbolic",
+      "A second response spliced into the first" },
     { "39_tenant_enum",   "Tenant Enum",     "DNS",
       "network-workgroup-symbolic",
       "Tenant id, cert transparency and reverse-DNS per ASN" },
@@ -2453,6 +2456,25 @@ static const PageSpec websocket_pages[] = {
       "|--payloads:The payload table", "57_websocket.sh" },
 };
 
+/* 60_resp_smuggle */
+static const PageSpec respsmuggle_pages[] = {
+    { "Overview", "dialog-information-symbolic", "60_resp_smuggle.sh" },
+    { "Posture", "security-medium-symbolic",
+      "#WHAT IT SAYS WITHOUT ANY PAYLOAD"
+      "|~--probe:Leak, cache and headers in one pass"
+      "|~--headers:Which security headers are missing"
+      "|~--cache:Would a shared cache keep this", "60_resp_smuggle.sh" },
+    { "Splice", "dialog-warning-symbolic",
+      "#THE SECOND RESPONSE"
+      "|~--reflect:Is anything echoed into the header block"
+      "|~--split:Every CR LF vector"
+      "|--vectors:The vector table", "60_resp_smuggle.sh" },
+    { "Errors", "document-open-symbolic",
+      "#WHAT THE ERROR PATH SAYS"
+      "|~--leak:Malformed requests and what came back"
+      "|--params:Parameters that reach a header", "60_resp_smuggle.sh" },
+};
+
 /* 58_sse */
 static const PageSpec sse_pages[] = {
     { "Overview", "dialog-information-symbolic", "58_sse.sh" },
@@ -2802,6 +2824,9 @@ static const ModuleSpec module_specs[] = {
     { "43_graphql", S("43_graphql.sh"),
       "GraphQL Introspection", "A schema the server never meant to hand out.",
       graphql_pages, G_N_ELEMENTS(graphql_pages) },
+    { "60_resp_smuggle", S("60_resp_smuggle.sh"), "Response Smuggling",
+      "A second response spliced into the first",
+      respsmuggle_pages, G_N_ELEMENTS(respsmuggle_pages) },
     { "58_sse", S("58_sse.sh"), "Server-Sent Events",
       "A stream nobody authenticated, judged per event",
       sse_pages, G_N_ELEMENTS(sse_pages) },

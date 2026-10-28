@@ -419,6 +419,7 @@ standalone, carries its own `--selftest`, and writes TSV.
 | `57_websocket` | Handshake auth, per-message auth and CSWSH — the origin check is the whole guard | 56 checks |
 | `59_smuggling` | The front end and the back end disagree about how much of the stream is this request | 45 checks |
 | `61_cors` | Origin reflection, null origin and regex bypass — with the cookie riding along | 52 checks |
+| `60_resp_smuggle` | A second response spliced into the first — and a cache willing to serve it | 45 checks |
 | `58_sse` | A stream nobody authenticated, judged per event | 56 checks |
 | `68_graphql_dos` | Depth, aliases, batching and fragments — the curve between a cheap query and a ruinous one | 55 checks |
 | `62_version_bypass` | The old version answers while the new one is locked | 38 checks |
@@ -499,6 +500,8 @@ Each module's own `--help` is the authority; this is the map.
                      --selftest --status-tsv --sweep --versions
 64_file_upload       --check --endpoints --extensions --help --list --magic --menu --name
                      --polyglot --probe --selftest --status-tsv --sweep --types
+60_resp_smuggle     --cache --headers --help --leak --list --menu --params
+                    --probe --reflect --selftest --split --status-tsv --vectors
 58_sse              --auth --cors --events --help --inject --list --menu --paths
                     --probe --sample --selftest --status-tsv
 68_graphql_dos       --aliases --batched --cost --depth --directive --fragment --help --list

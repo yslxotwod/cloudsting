@@ -35,6 +35,7 @@
 57	WEBAPI	6	WebSocket Attack	Handshake auth, per-message auth and CSWSH — the origin check is the whole guard
 58	WEBAPI	6	Server-Sent Events	A stream nobody authenticated, judged per event
 59	WEBAPI	8	Request Smuggling	The front end and the back end disagree about how much of the stream is this request
+60	WEBAPI	7	Response Smuggling	A second response spliced into the first — and a cache willing to serve it
 61	WEBAPI	8	CORS Abuse	The browser sends the cookie for you; the origin check is the whole guard
 62	WEBAPI	8	API Versioning Bypass	The old version answers while the new one is locked
 64	WEBAPI	8	File Upload Exploit	Walks the extension and content-type matrix an upload filter forgets

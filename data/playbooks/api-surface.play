@@ -61,3 +61,7 @@ module 27 --addresses
 # a stream is one response that never ends, so nothing that reads a code and a
 # header block ever sees what came down it
 module 58 --paths
+
+# a response that a cache will store is how one user's splice reaches another
+module 60 --vectors
+module 60 --params
