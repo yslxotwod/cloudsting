@@ -168,6 +168,9 @@ static const ModuleDefinition modules[] = {
     { "21_db_exposure",      "DB Exposure",     "DATA",
       "drive-harddisk-symbolic",
       "Managed databases, public reachability and endpoint probes" },
+    { "22_audit_evasion",    "Audit Coverage",  "AUDIT",
+      "document-open-recent-symbolic",
+      "Which audit controls are missing, and what that hides" },
 };
 
 /* ==================================================================== */
@@ -1004,7 +1007,7 @@ spec_arg_placeholder(const char *verb)
         { "--scan",     "/path/to/scan" },
         { "--check",    "value to check" },
         { "--probe",    "host or url" },
-        { "--explain",  "technique or port" },
+        { "--explain",  "technique, port or control" },
         { "--chain",    "role name" },
         { "--audit",    "/path/to/policy.json" },
         { "--detect",   "credential value" },
@@ -1842,6 +1845,16 @@ static const PageSpec db_pages[] = {
       "#ENGINES|--engines:Engine and port table" },
 };
 
+/* ---- 22_audit_evasion ---- */
+static const PageSpec ae_pages[] = {
+    { "Overview", "dialog-information-symbolic", NULL },
+    { "Posture", "document-open-recent-symbolic",
+      "#OBSERVED NOW|--posture:Check audit configuration"
+      "|#BLIND SPOTS|--blind:Missing or unobservable controls" },
+    { "Reference", "dialog-information-symbolic",
+      "#CONTROLS|--list:Control catalogue|~--explain:Explain one control" },
+};
+
 /* ---- Master spec table ---- */
 static const ModuleSpec module_specs[] = {
     { "00_deps", S("00_deps.sh"),
@@ -1910,6 +1923,9 @@ static const ModuleSpec module_specs[] = {
     { "21_db_exposure", S("21_db_exposure.sh"),
       "DB Exposure", "Managed databases, public reachability, endpoint probes.",
       db_pages, G_N_ELEMENTS(db_pages) },
+    { "22_audit_evasion", S("22_audit_evasion.sh"),
+      "Audit Coverage", "Which audit controls are missing, and what that hides.",
+      ae_pages, G_N_ELEMENTS(ae_pages) },
 };
 
 static const ModuleSpec *
@@ -1987,6 +2003,7 @@ static gpointer _new_dns(AppState *s)        { return generic_module_data_new(s,
 static gpointer _new_vpc(AppState *s)        { return generic_module_data_new(s, module_spec_for("19_vpc_map")); }
 static gpointer _new_sg(AppState *s)         { return generic_module_data_new(s, module_spec_for("20_sg_audit")); }
 static gpointer _new_db(AppState *s)         { return generic_module_data_new(s, module_spec_for("21_db_exposure")); }
+static gpointer _new_ae(AppState *s)         { return generic_module_data_new(s, module_spec_for("22_audit_evasion")); }
 
 /* ==================================================================== */
 /*  Module registry                                                      */
@@ -2076,6 +2093,8 @@ register_all_modules(void)
             module_registry_register(spec->id, e, n, _new_sg);
         else if (g_strcmp0(spec->id, "21_db_exposure") == 0)
             module_registry_register(spec->id, e, n, _new_db);
+        else if (g_strcmp0(spec->id, "22_audit_evasion") == 0)
+            module_registry_register(spec->id, e, n, _new_ae);
     }
 }
 

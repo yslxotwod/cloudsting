@@ -10,7 +10,7 @@ REST/GraphQL surfaces that sit in front of them.
 Every module is a standalone script. The GUI is a view over them, not a
 container — nothing is locked behind the interface.
 
-> **Early development.** Twenty-two of the eighty-four planned modules exist.
+> **Early development.** Twenty-three of the eighty-four planned modules exist.
 > Modules that need provider credentials report what they are missing rather
 > than pretending to succeed, and every module ships a `--selftest` that runs
 > offline.
@@ -141,7 +141,7 @@ a filter by severity.
 
 ## Modules
 
-Twenty-two modules, grouped by the categories the application itself uses, so this
+Twenty-three modules, grouped by the categories the application itself uses, so this
 list and the Dashboard cannot drift apart.
 
 ### System
@@ -195,6 +195,7 @@ list and the Dashboard cannot drift apart.
 | `11_user_data` | EC2 user-data and instance identity documents, then a secret scan over what came back | 8 checks |
 | `12_lambda_dump` | Lambda enumeration, configuration dump, code download, environment extraction | 6 checks |
 | `21_db_exposure` | Managed databases: public reachability, missing backups/encryption, and a one-endpoint TCP probe | 34 checks |
+| `22_audit_evasion` | Audit-trail coverage: which logging controls are off, and what each missing one hides | 27 checks |
 
 ### Verb reference
 
@@ -227,16 +228,17 @@ Each module's own `--help` is the authority; this is the map.
 19_vpc_map           --vpcs --subnets --routes --gateways --map --list --status-tsv
 20_sg_audit          --rules --audit --explain <port> --list --status-tsv
 21_db_exposure       --instances --public --probe <host> [port] --engines --status-tsv
+22_audit_evasion     --posture --blind --explain <check> --list --status-tsv
 ```
 
 ### Not built yet
 
-Sixty-two modules are planned and unbuilt. They are listed here so the gap is
+Sixty-one modules are planned and unbuilt. They are listed here so the gap is
 visible rather than implied:
 
 | Range | Planned |
 |---|---|
-| 22–30 | Audit-log evasion, persistence, cross-account trust, snapshot theft, event/webhook abuse, metadata DNS rebinding, CI/CD attack, WAF bypass, edge exploitation |
+| 23–30 | Persistence, cross-account trust, snapshot theft, event/webhook abuse, metadata DNS rebinding, CI/CD attack, WAF bypass, edge exploitation |
 | 31–40 | Vault extraction, provider API fuzzing, mail/SES abuse, console hijack, fleet sync, cryptojacking, backup ransom, cloud AD, tenant OSINT, canary hunting |
 | 41–60 | API discovery, OpenAPI and GraphQL mapping, JWT and OAuth abuse, API-key harvesting, auth bypass, BOLA/BFLA, mass assignment, HPP, rate-limit abuse, injection, SSRF, webhooks, gRPC, WebSocket, SSE, request smuggling, response leaks, CORS, versioning, pagination |
 | 61–78 | Upload abuse, deserialization, webhook signatures, session and refresh abuse, GraphQL DoS, binary fuzzing, spec diffing, business logic, race conditions, API DNS rebinding, LLM endpoints, key rotation, debug endpoints, mobile backends, replay |
