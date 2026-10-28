@@ -91,3 +91,8 @@ module 67 --vectors
 # between those two lines is the whole bug
 module 78 --vectors
 module 78 --list
+
+# 56 finds the service; 69 asks whether the decoder and the type agree about
+# what the bytes mean, which is a different question with a different answer
+module 69 --techniques
+module 69 --wire

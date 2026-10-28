@@ -233,6 +233,9 @@ static const ModuleDefinition module_fallback[] = {
     { "78_replay_nonce", "Replay & Nonce", "WEBAPI",
       "view-refresh-symbolic",
       "The request that still works the second time" },
+    { "69_bfuzz", "Binary Fuzz", "WEBAPI",
+      "applications-engineering-symbolic",
+      "The value the schema forbids" },
     { "66_webhook_sig", "Webhook Signature", "WEBAPI",
       "mail-signed-symbolic",
       "The signature nobody checked" },
@@ -2635,6 +2638,26 @@ static const PageSpec replay_pages[] = {
       "|--vectors:Every failure mode|--help:Usage", "78_replay_nonce.sh" },
 };
 
+/* 69_bfuzz */
+static const PageSpec bfuzz_pages[] = {
+    { "Overview", "dialog-information-symbolic", "69_bfuzz.sh" },
+    { "Detect", "system-search-symbolic",
+      "#IS IT PARSING BINARY AT ALL"
+      "|~--detect:Octet-stream then one empty frame"
+      "|~--probe:The control, then one truncated varint", "69_bfuzz.sh" },
+    { "Fuzz", "applications-engineering-symbolic",
+      "#THE MUTATION SET"
+      "|~--fuzz:Every mutation against the same control"
+      "|~--truncate:Cut a valid message at every byte", "69_bfuzz.sh" },
+    { "Types", "text-x-generic-symbolic",
+      "#INTEGERS AND TYPES"
+      "|~--varint:Values the type cannot hold"
+      "|~--packed:A repeated field in the wrong packing"
+      "|~--any:A type_url the server never packs", "69_bfuzz.sh" },
+    { "Reference", "help-about-symbolic",
+      "|--techniques:Every mutation|--wire:Wire types|--help:Usage", "69_bfuzz.sh" },
+};
+
 /* 44_jwt */
 static const PageSpec jwt_pages[] = {
     { "Overview", "dialog-information-symbolic", "44_jwt.sh" },
@@ -3023,6 +3046,9 @@ static const ModuleSpec module_specs[] = {
     { "78_replay_nonce", S("78_replay_nonce.sh"),
       "Replay & Nonce", "The request that still works the second time — check-then-act and the missing nonce store.",
       replay_pages, G_N_ELEMENTS(replay_pages) },
+    { "69_bfuzz", S("69_bfuzz.sh"),
+      "Binary Fuzz", "The value the schema forbids — what the decoder accepts, the handler believes.",
+      bfuzz_pages, G_N_ELEMENTS(bfuzz_pages) },
     { "66_webhook_sig", S("66_webhook_sig.sh"),
       "Webhook Signature", "A signature nobody checked — control first, then every receiver mistake.",
       websig_pages, G_N_ELEMENTS(websig_pages) },

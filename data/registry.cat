@@ -44,5 +44,6 @@
 66	WEBAPI	9	Webhook Signature Bypass	The signature nobody checked — control first, then every receiver mistake
 67	WEBAPI	9	Token Refresh & Session Hijack	The token that outlives the logout — rotation, replay and revocation, measured
 68	WEBAPI	6	GraphQL Query Cost	Depth, aliases, batching and fragments — the curve between a cheap query and a ruinous one
+69	WEBAPI	6	Binary / Protobuf Fuzzing	The value the schema forbids — what the decoder accepts, the handler believes
 76	SURFACE	1	Debug Endpoint Discovery	Health, actuator, docs and env endpoints that answer when they should not
 78	WEBAPI	8	Replay & Nonce	The request that still works the second time — check-then-act and the missing nonce store

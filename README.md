@@ -429,6 +429,7 @@ standalone, carries its own `--selftest`, and writes TSV.
 | `66_webhook_sig` | The signature nobody checked — the control runs first, so `checked` means something | 47 checks |
 | `67_token_refresh` | The token that outlives the logout — rotation, replay and revocation, measured | 51 checks |
 | `78_replay_nonce` | The request that still works the second time — check-then-act and the missing nonce store | 37 checks |
+| `69_bfuzz` | The value the schema forbids — what the protobuf decoder accepts, the handler believes | 45 checks |
 
 ### Verb reference
 
@@ -516,6 +517,8 @@ Each module's own `--help` is the authority; this is the map.
                     --vectors --verdicts --window
 78_replay_nonce     --check --help --idempotency --list --menu --nonce --probe
                     --replay --selftest --status-tsv --timestamp --vectors
+69_bfuzz            --any --detect --fuzz --help --list --menu --packed --probe
+                    --selftest --status-tsv --techniques --truncate --varint --wire
 60_resp_smuggle     --cache --headers --help --leak --list --menu --params
                     --probe --reflect --selftest --split --status-tsv --vectors
 58_sse              --auth --cors --events --help --inject --list --menu --paths
