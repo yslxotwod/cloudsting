@@ -1,5 +1,5 @@
 project('cloudsting', 'c',
-    version: '0.12.0',
+    version: '1.0.0',
     meson_version: '>= 1.0',
     default_options: ['c_std=c17', 'warning_level=1'])
 

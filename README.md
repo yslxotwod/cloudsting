@@ -10,10 +10,12 @@ REST/GraphQL surfaces that sit in front of them.
 Every module is a standalone script. The GUI is a view over them, not a
 container — nothing is locked behind the interface.
 
-> **Early development.** Twenty-four of the eighty-four planned modules exist.
-> Modules that need provider credentials report what they are missing rather
-> than pretending to succeed, and every module ships a `--selftest` that runs
-> offline.
+> **v1.0.0.** Thirty-seven modules exist and every one is selftested green. The
+> API family is the current front: authentication, object- and function-level
+> authorization, injection, parameter pollution, smuggling, CORS, OAuth, JWT,
+> versioning and upload. Modules that need provider credentials report what they
+> are missing rather than pretending to succeed, and every module ships a
+> `--selftest` that runs offline.
 
 ---
 
