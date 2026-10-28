@@ -165,6 +165,9 @@ static const ModuleDefinition modules[] = {
     { "20_sg_audit",         "Firewall Audit",   "AUDIT",
       "security-medium-symbolic",
       "Find world-open ports and grade them by what listens there" },
+    { "21_db_exposure",      "DB Exposure",     "DATA",
+      "drive-harddisk-symbolic",
+      "Managed databases, public reachability and endpoint probes" },
 };
 
 /* ==================================================================== */
@@ -1000,7 +1003,7 @@ spec_arg_placeholder(const char *verb)
         { "--perm",     "bucket-name" },
         { "--scan",     "/path/to/scan" },
         { "--check",    "value to check" },
-        { "--probe",    "http://host/path" },
+        { "--probe",    "host or url" },
         { "--explain",  "technique or port" },
         { "--chain",    "role name" },
         { "--audit",    "/path/to/policy.json" },
@@ -1829,6 +1832,16 @@ static const PageSpec sg_pages[] = {
       "#PORT CLASSES|--list:Port class table" },
 };
 
+/* ---- 21_db_exposure ---- */
+static const PageSpec db_pages[] = {
+    { "Overview", "dialog-information-symbolic", NULL },
+    { "Inventory", "drive-harddisk-symbolic",
+      "#MANAGED DATABASES|--instances:List instances|--public:Publicly reachable only"
+      "|#REACH|~~--probe:Probe an endpoint (host [port])" },
+    { "Reference", "dialog-information-symbolic",
+      "#ENGINES|--engines:Engine and port table" },
+};
+
 /* ---- Master spec table ---- */
 static const ModuleSpec module_specs[] = {
     { "00_deps", S("00_deps.sh"),
@@ -1894,6 +1907,9 @@ static const ModuleSpec module_specs[] = {
     { "20_sg_audit", S("20_sg_audit.sh"),
       "Firewall Audit", "World-open rules, graded by the port class behind them.",
       sg_pages, G_N_ELEMENTS(sg_pages) },
+    { "21_db_exposure", S("21_db_exposure.sh"),
+      "DB Exposure", "Managed databases, public reachability, endpoint probes.",
+      db_pages, G_N_ELEMENTS(db_pages) },
 };
 
 static const ModuleSpec *
@@ -1970,6 +1986,7 @@ static gpointer _new_k8ssec(AppState *s)     { return generic_module_data_new(s,
 static gpointer _new_dns(AppState *s)        { return generic_module_data_new(s, module_spec_for("18_cloud_dns")); }
 static gpointer _new_vpc(AppState *s)        { return generic_module_data_new(s, module_spec_for("19_vpc_map")); }
 static gpointer _new_sg(AppState *s)         { return generic_module_data_new(s, module_spec_for("20_sg_audit")); }
+static gpointer _new_db(AppState *s)         { return generic_module_data_new(s, module_spec_for("21_db_exposure")); }
 
 /* ==================================================================== */
 /*  Module registry                                                      */
@@ -2057,6 +2074,8 @@ register_all_modules(void)
             module_registry_register(spec->id, e, n, _new_vpc);
         else if (g_strcmp0(spec->id, "20_sg_audit") == 0)
             module_registry_register(spec->id, e, n, _new_sg);
+        else if (g_strcmp0(spec->id, "21_db_exposure") == 0)
+            module_registry_register(spec->id, e, n, _new_db);
     }
 }
 
