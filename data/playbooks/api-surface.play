@@ -65,3 +65,8 @@ module 58 --paths
 # a response that a cache will store is how one user's splice reaches another
 module 60 --vectors
 module 60 --params
+
+# a list endpoint that hands over the table is silent: the response looks
+# exactly like a correctly paginated one
+module 63 --params
+module 63 --verdicts

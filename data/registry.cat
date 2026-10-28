@@ -38,6 +38,7 @@
 60	WEBAPI	7	Response Smuggling	A second response spliced into the first — and a cache willing to serve it
 61	WEBAPI	8	CORS Abuse	The browser sends the cookie for you; the origin check is the whole guard
 62	WEBAPI	8	API Versioning Bypass	The old version answers while the new one is locked
+63	WEBAPI	6	Pagination Abuse	A list endpoint that will hand over the table — measured, not assumed
 64	WEBAPI	8	File Upload Exploit	Walks the extension and content-type matrix an upload filter forgets
 68	WEBAPI	6	GraphQL Query Cost	Depth, aliases, batching and fragments — the curve between a cheap query and a ruinous one
 76	SURFACE	1	Debug Endpoint Discovery	Health, actuator, docs and env endpoints that answer when they should not

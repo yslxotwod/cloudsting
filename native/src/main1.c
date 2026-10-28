@@ -158,6 +158,9 @@ static const ModuleDefinition module_fallback[] = {
     { "60_resp_smuggle",  "Response Smuggling", "WEBAPI",
       "document-open-recent-symbolic",
       "A second response spliced into the first" },
+    { "63_pagination",    "Pagination Abuse",   "WEBAPI",
+      "view-list-symbolic",
+      "A list endpoint that will hand over the table" },
     { "39_tenant_enum",   "Tenant Enum",     "DNS",
       "network-workgroup-symbolic",
       "Tenant id, cert transparency and reverse-DNS per ASN" },
@@ -2456,6 +2459,24 @@ static const PageSpec websocket_pages[] = {
       "|--payloads:The payload table", "57_websocket.sh" },
 };
 
+/* 63_pagination */
+static const PageSpec pagination_pages[] = {
+    { "Overview", "dialog-information-symbolic", "63_pagination.sh" },
+    { "Default", "view-list-symbolic",
+      "#WHAT COMES BACK WHEN ASKED FOR NOTHING"
+      "|~--probe:The unparameterised response"
+      "|~--walk:Does walking pages enumerate the table"
+      "|--params:The pagination parameters", "63_pagination.sh" },
+    { "Limits", "document-open-recent-symbolic",
+      "#ASK FOR ONE, ASK FOR A MILLION"
+      "|~--limits:Compare the two"
+      "|~--inject:Does the page size reach the query"
+      "|--verdicts:What each answer means", "63_pagination.sh" },
+    { "Cursors", "emblem-synchronizing-symbolic",
+      "#IS THE CURSOR OPAQUE"
+      "|~--cursor:A token a client can edit", "63_pagination.sh" },
+};
+
 /* 60_resp_smuggle */
 static const PageSpec respsmuggle_pages[] = {
     { "Overview", "dialog-information-symbolic", "60_resp_smuggle.sh" },
@@ -2824,6 +2845,9 @@ static const ModuleSpec module_specs[] = {
     { "43_graphql", S("43_graphql.sh"),
       "GraphQL Introspection", "A schema the server never meant to hand out.",
       graphql_pages, G_N_ELEMENTS(graphql_pages) },
+    { "63_pagination", S("63_pagination.sh"), "Pagination Abuse",
+      "A list endpoint that will hand over the table",
+      pagination_pages, G_N_ELEMENTS(pagination_pages) },
     { "60_resp_smuggle", S("60_resp_smuggle.sh"), "Response Smuggling",
       "A second response spliced into the first",
       respsmuggle_pages, G_N_ELEMENTS(respsmuggle_pages) },
