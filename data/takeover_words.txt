@@ -1,0 +1,16 @@
+dev
+stage
+staging
+prod
+www
+api
+cdn
+mail
+blog
+shop
+assets
+static
+old
+beta
+app
+test
