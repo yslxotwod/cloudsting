@@ -427,6 +427,7 @@ standalone, carries its own `--selftest`, and writes TSV.
 | `64_file_upload` | Walks the extension and content-type matrix an upload filter forgets | 53 checks |
 | `65_deserialization` | The object the server rebuilt — a payload that is a data structure, not a string | 55 checks |
 | `66_webhook_sig` | The signature nobody checked — the control runs first, so `checked` means something | 47 checks |
+| `67_token_refresh` | The token that outlives the logout — rotation, replay and revocation, measured | 51 checks |
 
 ### Verb reference
 
@@ -509,6 +510,9 @@ Each module's own `--help` is the authority; this is the map.
                     --menu --payloads --probe --scan --selftest --status-tsv
 66_webhook_sig      --check --confusion --help --list --menu --probe --replay
                     --schemes --selftest --status-tsv --vectors --window
+67_token_refresh    --fixation --grants --help --list --menu --probe --replay
+                    --revoke --rotate --scopes --selftest --status-tsv
+                    --vectors --verdicts --window
 60_resp_smuggle     --cache --headers --help --leak --list --menu --params
                     --probe --reflect --selftest --split --status-tsv --vectors
 58_sse              --auth --cors --events --help --inject --list --menu --paths

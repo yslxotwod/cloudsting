@@ -80,3 +80,8 @@ module 65 --scan $TARGET
 # the control proves the endpoint is signed before anything else is read
 module 66 --schemes
 module 66 --check $TARGET
+
+# a refresh token is a second key to the same door; the question is never
+# "did logout return 200" but "does the artifact still work afterwards"
+module 67 --grants
+module 67 --vectors
