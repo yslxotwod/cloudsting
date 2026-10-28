@@ -162,6 +162,9 @@ static const ModuleDefinition modules[] = {
     { "19_vpc_map",          "VPC Map",          "RECON",
       "network-transmit-receive-symbolic",
       "Map virtual networks, subnets, routes and gateways" },
+    { "20_sg_audit",         "Firewall Audit",   "AUDIT",
+      "security-medium-symbolic",
+      "Find world-open ports and grade them by what listens there" },
 };
 
 /* ==================================================================== */
@@ -998,7 +1001,7 @@ spec_arg_placeholder(const char *verb)
         { "--scan",     "/path/to/scan" },
         { "--check",    "value to check" },
         { "--probe",    "http://host/path" },
-        { "--explain",  "technique name" },
+        { "--explain",  "technique or port" },
         { "--chain",    "role name" },
         { "--audit",    "/path/to/policy.json" },
         { "--detect",   "credential value" },
@@ -1816,6 +1819,16 @@ static const PageSpec vpc_pages[] = {
       "#EXPOSURE|--map:Full map and findings|#REFERENCE|--list:Verb reference" },
 };
 
+/* ---- 20_sg_audit ---- */
+static const PageSpec sg_pages[] = {
+    { "Overview", "dialog-information-symbolic", NULL },
+    { "Audit", "security-medium-symbolic",
+      "#COLLECT|--rules:Collect every rule|--audit:World-open findings"
+      "|#ONE PORT|~--explain:Explain a port" },
+    { "Reference", "dialog-information-symbolic",
+      "#PORT CLASSES|--list:Port class table" },
+};
+
 /* ---- Master spec table ---- */
 static const ModuleSpec module_specs[] = {
     { "00_deps", S("00_deps.sh"),
@@ -1878,6 +1891,9 @@ static const ModuleSpec module_specs[] = {
     { "19_vpc_map", S("19_vpc_map.sh"),
       "VPC Map", "Networks, subnets, routes, gateways and what they expose.",
       vpc_pages, G_N_ELEMENTS(vpc_pages) },
+    { "20_sg_audit", S("20_sg_audit.sh"),
+      "Firewall Audit", "World-open rules, graded by the port class behind them.",
+      sg_pages, G_N_ELEMENTS(sg_pages) },
 };
 
 static const ModuleSpec *
@@ -1953,6 +1969,7 @@ static gpointer _new_k8ssurf(AppState *s)    { return generic_module_data_new(s,
 static gpointer _new_k8ssec(AppState *s)     { return generic_module_data_new(s, module_spec_for("17_k8s_secrets")); }
 static gpointer _new_dns(AppState *s)        { return generic_module_data_new(s, module_spec_for("18_cloud_dns")); }
 static gpointer _new_vpc(AppState *s)        { return generic_module_data_new(s, module_spec_for("19_vpc_map")); }
+static gpointer _new_sg(AppState *s)         { return generic_module_data_new(s, module_spec_for("20_sg_audit")); }
 
 /* ==================================================================== */
 /*  Module registry                                                      */
@@ -2038,6 +2055,8 @@ register_all_modules(void)
             module_registry_register(spec->id, e, n, _new_dns);
         else if (g_strcmp0(spec->id, "19_vpc_map") == 0)
             module_registry_register(spec->id, e, n, _new_vpc);
+        else if (g_strcmp0(spec->id, "20_sg_audit") == 0)
+            module_registry_register(spec->id, e, n, _new_sg);
     }
 }
 

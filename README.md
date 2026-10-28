@@ -10,7 +10,7 @@ REST/GraphQL surfaces that sit in front of them.
 Every module is a standalone script. The GUI is a view over them, not a
 container — nothing is locked behind the interface.
 
-> **Early development.** Twenty of the eighty-four planned modules exist.
+> **Early development.** Twenty-one of the eighty-four planned modules exist.
 > Modules that need provider credentials report what they are missing rather
 > than pretending to succeed, and every module ships a `--selftest` that runs
 > offline.
@@ -141,7 +141,7 @@ a filter by severity.
 
 ## Modules
 
-Twenty modules, grouped by the categories the application itself uses, so this
+Twenty-one modules, grouped by the categories the application itself uses, so this
 list and the Dashboard cannot drift apart.
 
 ### System
@@ -186,6 +186,7 @@ list and the Dashboard cannot drift apart.
 |---|---|---|
 | `07_policy_audit` | IAM policy auditor: wildcards, NotAction/NotResource holes, privilege-bearing grants | 12 checks |
 | `08_secrets_scan` | Sixteen signature families across a filesystem, a file or a stream | 12 checks |
+| `20_sg_audit` | World-open firewall rules graded by the port class behind them | 36 checks |
 
 ### Data
 
@@ -223,16 +224,17 @@ Each module's own `--help` is the authority; this is the map.
 18_cloud_dns         --zones --records <zone> --resolve <name> [type] --dangling <zone>
                      --axfr <zone> --all --list --status-tsv
 19_vpc_map           --vpcs --subnets --routes --gateways --map --list --status-tsv
+20_sg_audit          --rules --audit --explain <port> --list --status-tsv
 ```
 
 ### Not built yet
 
-Sixty-four modules are planned and unbuilt. They are listed here so the gap is
+Sixty-three modules are planned and unbuilt. They are listed here so the gap is
 visible rather than implied:
 
 | Range | Planned |
 |---|---|
-| 20–30 | Security-group audit, database exposure, audit-log evasion, persistence, cross-account trust, snapshot theft, event/webhook abuse, metadata DNS rebinding, CI/CD attack, WAF bypass, edge exploitation |
+| 21–30 | Database exposure, audit-log evasion, persistence, cross-account trust, snapshot theft, event/webhook abuse, metadata DNS rebinding, CI/CD attack, WAF bypass, edge exploitation |
 | 31–40 | Vault extraction, provider API fuzzing, mail/SES abuse, console hijack, fleet sync, cryptojacking, backup ransom, cloud AD, tenant OSINT, canary hunting |
 | 41–60 | API discovery, OpenAPI and GraphQL mapping, JWT and OAuth abuse, API-key harvesting, auth bypass, BOLA/BFLA, mass assignment, HPP, rate-limit abuse, injection, SSRF, webhooks, gRPC, WebSocket, SSE, request smuggling, response leaks, CORS, versioning, pagination |
 | 61–78 | Upload abuse, deserialization, webhook signatures, session and refresh abuse, GraphQL DoS, binary fuzzing, spec diffing, business logic, race conditions, API DNS rebinding, LLM endpoints, key rotation, debug endpoints, mobile backends, replay |
@@ -284,6 +286,11 @@ dispatch        --status-tsv, --menu, --selftest, --help
 ```
 
 ### Conventions
+Read TSV with `awk -F'\t'`, never `grep '\t'`: POSIX grep treats `\t` as a
+literal `t`, so `grep -c '^aws\tec2'` silently matches nothing. And because tab
+is an IFS whitespace character, `IFS=$'\t' read -r a b c` collapses runs of
+empty fields — emit an explicit `-` placeholder for "no value" and normalise it
+after reading, or every row with a hole in it shifts.
 
 Every module follows the same contract, and the rules exist because ignoring them
 produced a real bug at least once:
