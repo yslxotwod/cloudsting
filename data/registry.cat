@@ -29,6 +29,7 @@ id	category	phase	title	mission
 50	WEBAPI	5	Mass Assignment	Fields the server trusts because the client sent them
 51	WEBAPI	8	Parameter Pollution	One parameter, two meanings — duplicate, array and encoding shapes a parser folds
 52	WEBAPI	8	Rate Limit Bypass	Forwarding-header rotation against a limit that trusts the header
+53	WEBAPI	8	API Injection	A value the interpreter reads as code — SQL, NoSQL, command, template, LDAP and XPath
 54	WEBAPI	7	SSRF Tester	Makes a server fetch metadata, loopback or a local file, and proves it by content
 62	WEBAPI	8	API Versioning Bypass	The old version answers while the new one is locked
 64	WEBAPI	8	File Upload Exploit	Walks the extension and content-type matrix an upload filter forgets

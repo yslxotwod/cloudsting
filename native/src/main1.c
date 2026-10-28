@@ -2455,6 +2455,23 @@ static const PageSpec ratelimit_pages[] = {
       NULL, "52_rate_limit.sh" },
 };
 
+/* 53_injection — the value is interpreted, not stored */
+static const PageSpec injection_pages[] = {
+    { "Overview", "dialog-information-symbolic", NULL, "53_injection.sh" },
+    { "Sweep", "document-open-recent-symbolic",
+      "#ONE PARAMETER|~~~~--check:Url, parameter, where it lands, family"
+      "|#FAMILIES|~~--sqli:Boolean pair and arithmetic"
+      "|~~--nosqli:Operator objects in a JSON body"
+      "|~~--cmdi:Shell metacharacters", NULL, "53_injection.sh" },
+    { "Renderers", "network-transmit-symbolic",
+      "#TEMPLATES|~~--ssti:Template evaluation, proved by 49"
+      "|~~--ldap:Filter injection"
+      "|~~--xpath:Predicate injection", NULL, "53_injection.sh" },
+    { "Reference", "dialog-information-symbolic",
+      "#TABLES|--families:What each family proves|--payloads:Every payload"
+      "|--params:Parameters worth testing", NULL, "53_injection.sh" },
+};
+
 /* 54_ssrf */
 static const PageSpec ssrf_pages[] = {
     { "Overview", "dialog-information-symbolic", NULL, "54_ssrf.sh" },
@@ -2622,6 +2639,10 @@ static const ModuleSpec module_specs[] = {
     { "52_rate_limit", S("52_rate_limit.sh"),
       "Rate Limit Bypass", "Forwarding-header rotation against a limit that trusts the header.",
       ratelimit_pages, G_N_ELEMENTS(ratelimit_pages) },
+    { "53_injection", S("53_injection.sh"),
+      "API Injection",
+      "A value the interpreter reads as code — SQL, NoSQL, command, template, LDAP and XPath.",
+      injection_pages, G_N_ELEMENTS(injection_pages) },
     { "54_ssrf", S("54_ssrf.sh"),
       "SSRF Tester", "Make a server fetch metadata, loopback or a local file, and prove it by content.",
       ssrf_pages, G_N_ELEMENTS(ssrf_pages) },

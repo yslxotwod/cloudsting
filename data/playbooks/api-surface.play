@@ -23,3 +23,8 @@ module 45 --tests
 # table covers the shapes that actually fold
 module 51 --list
 module 51 --params
+
+# injection is a family question, not a payload question: name the parameter and
+# let the families argue
+module 53 --families
+module 53 --payloads

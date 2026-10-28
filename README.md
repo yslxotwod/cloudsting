@@ -410,6 +410,7 @@ standalone, carries its own `--selftest`, and writes TSV.
 | `50_mass_assign` | Fields the server trusts because the client sent them | 46 checks |
 | `51_hpp` | One parameter, two meanings — the duplicate, array and encoding shapes a parser folds | 54 checks |
 | `52_rate_limit` | Forwarding-header rotation against a limit that trusts the header | 48 checks |
+| `53_injection` | A value the interpreter reads as code — SQL, NoSQL, command, template, LDAP and XPath | 64 checks |
 | `54_ssrf` | Makes a server fetch metadata, loopback or a local file, and proves it by content | 43 checks |
 | `62_version_bypass` | The old version answers while the new one is locked | 38 checks |
 | `64_file_upload` | Walks the extension and content-type matrix an upload filter forgets | 53 checks |
@@ -471,6 +472,8 @@ Each module's own `--help` is the authority; this is the map.
                      --query --selftest --smuggle --split --status-tsv
 52_rate_limit        --check --headers --help --list --menu --modes --probe --rotate --selftest
                      --status-tsv
+53_injection         --check --cmdi --families --help --ldap --list --menu --nosqli --params
+                     --payloads --selftest --sqli --ssti --status-tsv --xpath
 54_ssrf              --callback --check --help --list --menu --params --parse --probe --save
                      --selftest --status-tsv --sweep --targets --vendors
 62_version_bypass    --compare --headers --help --list --matrix --menu --normalise --probe
