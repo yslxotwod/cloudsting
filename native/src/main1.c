@@ -1092,6 +1092,10 @@ typedef struct {
     const char *name;
     const char *icon;
     const char *spec;
+    /* Optional script override. A module whose id and file name disagree
+       (an entry table reclaimed from a merged module) names its script here
+       instead of carrying a second ModuleSpec. */
+    const char *script;
 } PageSpec;
 
 typedef struct {
@@ -1766,6 +1770,16 @@ generic_build_spec_page(AppState *state, GenericModulePage *g,
     r->state = state;
     r->spec = g->spec;
     r->page = page_spec;
+    {
+        /* A page table reclaimed from a merged module names its own script;
+           otherwise the run uses the spec the page was opened under. */
+        static ModuleSpec script_override;
+        if (page_spec->script != NULL) {
+            script_override = *g->spec;
+            script_override.script = page_spec->script;
+            r->spec = &script_override;
+        }
+    }
 
     items = g_strsplit(page_spec->spec, "|", -1);
     for (int i = 0; items[i] != NULL; i++) {
@@ -2057,7 +2071,7 @@ static const PageSpec secrets_pages[] = {
 };
 
 /* ---- 09_ssrf_imds ---- */
-static const PageSpec ssrf_pages[] = {
+static const PageSpec ssrf_imds_legacy_pages[] = {
     { "Overview", "dialog-information-symbolic", NULL },
     { "Probe", "network-transmit-receive-symbolic",
       "#TARGETS|~--probe:Probe a URL|~--check:Check a URL"
@@ -2092,8 +2106,10 @@ static const PageSpec lambda_pages[] = {
       "|~--env:Print environment" },
 };
 
-/* ---- 13_serverless_recon ---- */
-static const PageSpec serverless_pages[] = {
+/* ---- 13_serverless_recon (superseded: see serverless_pages below, which
+   serves the merged 12_serverless module; this table is kept only while a
+   registry row still names 13. ---- */
+static const PageSpec serverless_recon_pages[] = {
     { "Overview", "dialog-information-symbolic", NULL },
     { "Enumerate", "view-list-symbolic",
       "#ENUMERATION|--list:List functions|--urls:List function URLs" },
@@ -2145,7 +2161,7 @@ static const PageSpec k8ssec_pages[] = {
       "|#REFERENCE|--list:Verb list" },
 };
 
-/* ---- 18_cloud_dns ---- */
+/* ---- 18_network (was 18_cloud_dns + 19_vpc_map + 20_sg_audit + 04_takeover) ---- */
 static const PageSpec dns_pages[] = {
     { "Overview", "dialog-information-symbolic", NULL },
     { "Zones", "network-server-symbolic",
@@ -2208,6 +2224,268 @@ static const PageSpec persist_pages[] = {
       "#MECHANISMS|--list:Mechanism catalogue" },
 };
 
+/* ---- Reclaimed and campaign tables (one per surviving module) ----
+   Each page names the script its verbs live in, so a module whose id and
+   file name disagree still gets a real page, and a merged module keeps one
+   table instead of a second ModuleSpec. */
+
+/* 09_imds — what 09_ssrf_imds, 10_imdsv2_bypass and 11_user_data used to be. */
+static const PageSpec imds_pages[] = {
+    { "Metadata", "document-open-recent-symbolic",
+      "#THIS HOST|--probe:Probe the local metadata service"
+      "|#FROM A URL|~--check:Check a url|~--token:Fetch a v2 token"
+      "|~--exec:Exec through SSRF|~--userdata:Read user-data"
+      "|#ANALYSE|--keys:Instance identity keys|--creds:Dump every credential",
+      NULL, "09_imds.sh" },
+    { "Reference", "dialog-information-symbolic",
+      "#TABLES|--endpoints:Endpoint catalogue|--techniques:Technique catalogue"
+      "|--list:All verbs", NULL, "09_imds.sh" },
+};
+
+/* 12_serverless — what 12_lambda_dump and 13_serverless_recon used to be. */
+static const PageSpec serverless_pages[] = {
+    { "Overview", "dialog-information-symbolic",
+      "#WHAT IS THERE|--list:List functions across providers"
+      "|#SOURCE|--urls:Function invoke urls", NULL, "12_serverless.sh" },
+    { "Functions", "document-open-recent-symbolic",
+      "#ONE FUNCTION|~--env:Read its environment|~--dump:Pull its configuration"
+      "|~--download:Download its code|#ALL OF THEM|--download-all:Download everything",
+      NULL, "12_serverless.sh" },
+    { "Invoke", "system-run-symbolic",
+      "#REACH IT|~~--invoke:Invoke one function|--all:Full sweep",
+      NULL, "12_serverless.sh" },
+};
+
+/* 16_kubernetes — what 16_k8s_attack_surface and 17_k8s_secrets used to be. */
+static const PageSpec kubernetes_pages[] = {
+    { "Overview", "dialog-information-symbolic", NULL, "16_kubernetes.sh" },
+    { "Clusters", "document-open-recent-symbolic",
+      "#WHERE|--clusters:Reachable clusters|--kubeconfig:Kubeconfig context"
+      "|#INSIDE|--nodes:Nodes|--pods:Pods", NULL, "16_kubernetes.sh" },
+    { "Secrets", "dialog-password-symbolic",
+      "#ACCESS|--secrets:Secrets|--sa-tokens:Service account tokens"
+      "|~--decode:Decode one secret|--extract:Extract and decode all",
+      NULL, "16_kubernetes.sh" },
+    { "Abuse", "dialog-warning-symbolic",
+      "#RBAC|--rbac:Who may do what|--abuse:Escalation checklist",
+      NULL, "16_kubernetes.sh" },
+};
+
+/* 18_network — what 18_cloud_dns, 19_vpc_map, 20_sg_audit and 04_takeover
+   used to be. */
+static const PageSpec network_pages[] = {
+    { "Overview", "dialog-information-symbolic", NULL, "18_network.sh" },
+    { "Naming", "document-open-recent-symbolic",
+      "#ZONES|--zones:Hosted zones|~--records:Records in a zone"
+      "|~--resolve:Resolve one name|#BAD RECORDS|~--dangling:Takeover-prone CNAMEs"
+      "|~--takeover:Full takeover pass|~--claim:Check one host"
+      "|~--axfr:Zone transfer", NULL, "18_network.sh" },
+    { "Topology", "network-wired-symbolic",
+      "#NETWORKS|--vpcs:VPCs and networks|--subnets:Subnets"
+      "|--routes:Route tables|--gateways:Gateways|--map:Draw the map",
+      NULL, "18_network.sh" },
+    { "Exposure", "dialog-warning-symbolic",
+      "#FIREWALL|--rules:Security group rules|--audit:World-open, graded by port"
+      "|#REFERENCE|--fingerprints:Takeover fingerprints",
+      NULL, "18_network.sh" },
+};
+
+/* 39_tenant_enum */
+static const PageSpec tenant_pages[] = {
+    { "Overview", "dialog-information-symbolic", NULL, "39_tenant_enum.sh" },
+    { "Tenant", "document-open-recent-symbolic",
+      "#THE ORG|~--tenant:Tenant id and federation realm"
+      "|#NAMESPACES|~--buckets:Bucket namespaces|~--projects:GCP projects"
+      "|~--azure:Azure storage accounts|~--apis:Resolving subdomains",
+      NULL, "39_tenant_enum.sh" },
+    { "Certificates", "security-high-symbolic",
+      "#CT LOGS|~--crt:Names from certificate transparency"
+      "|#REVERSE DNS|~~--ptr:Sweep a range", NULL, "39_tenant_enum.sh" },
+};
+
+/* 41_api_discovery */
+static const PageSpec apidisc_pages[] = {
+    { "Overview", "dialog-information-symbolic", NULL, "41_api_discovery.sh" },
+    { "Discover", "document-open-recent-symbolic",
+      "#ENDPOINTS|~--discover:Brute paths against a measured baseline"
+      "|~--spec:Find the spec document|--wordlist:The wordlist it sends",
+      NULL, "41_api_discovery.sh" },
+    { "Methods", "system-run-symbolic",
+      "#VERBS|~~--methods:Which verbs one path answers", NULL, "41_api_discovery.sh" },
+};
+
+/* 42_openapi */
+static const PageSpec openapi_pages[] = {
+    { "Overview", "dialog-information-symbolic", NULL, "42_openapi.sh" },
+    { "Spec", "document-open-recent-symbolic",
+      "#FIND IT|~--find:Probe well-known spec paths and vendor doc trees"
+      "|~--analyze:Read a spec file or url", NULL, "42_openapi.sh" },
+    { "Report", "view-list-symbolic",
+      "#WHAT IT ADMITS|--auth:Operations with no usable security"
+      "|--endpoints:Every operation|--params:Url-taking parameters"
+      "|~--diff:Two specs, added and removed", NULL, "42_openapi.sh" },
+};
+
+/* 43_graphql */
+static const PageSpec graphql_pages[] = {
+    { "Overview", "dialog-information-symbolic", NULL, "43_graphql.sh" },
+    { "Schema", "document-open-recent-symbolic",
+      "#INTROSPECT|~--find:Probe graph paths|~--introspect:Pull the schema"
+      "|~--schema:Who may query what", NULL, "43_graphql.sh" },
+    { "Surface", "view-list-symbolic",
+      "#FIELDS|~--queries:Root fields|~--fields:Field graph"
+      "|~--depth:Deepest path|~--check:One endpoint", NULL, "43_graphql.sh" },
+};
+
+/* 44_jwt */
+static const PageSpec jwt_pages[] = {
+    { "Overview", "dialog-information-symbolic", NULL, "44_jwt.sh" },
+    { "Inspect", "document-open-recent-symbolic",
+      "#A TOKEN|--inspect:Header, claims and grade|--claims:Claims only"
+      "|--keys:PEM keys it can use", NULL, "44_jwt.sh" },
+    { "Attack", "dialog-warning-symbolic",
+      "#FORGE|~--forge:Forge with a chosen scheme|~--kid:kid injection"
+      "|~--jku:jku injection|#BREAK|~--crack:Offline hmac crack"
+      "|~~--alg:Try alg:none and key confusion live", NULL, "44_jwt.sh" },
+};
+
+/* 46_key_harvest */
+static const PageSpec keyharvest_pages[] = {
+    { "Overview", "dialog-information-symbolic", NULL, "46_key_harvest.sh" },
+    { "Harvest", "document-open-recent-symbolic",
+      "#A PAGE|~--harvest:Page and every script it loads"
+      "|~--js:One bundle|~--headers:Response headers", NULL, "46_key_harvest.sh" },
+    { "Detect", "dialog-password-symbolic",
+      "#LOCAL|~--detect:Scan a file or stdin|~--defang:Explain one value"
+      "|--providers:The provider table", NULL, "46_key_harvest.sh" },
+};
+
+/* 47_auth_bypass */
+
+/* 48_bola */
+static const PageSpec bola_pages[] = {
+    { "Overview", "dialog-information-symbolic", NULL, "48_bola.sh" },
+    { "Objects", "document-open-recent-symbolic",
+      "#ONE ID|~~--check:One base, one family, one id"
+      "|~--matrix:Every family against one id"
+      "|~~--enumerate:Walk the neighbours of a known id",
+      NULL, "48_bola.sh" },
+    { "Sweep", "view-list-symbolic",
+      "#WIDE|~~--sweep:Msissn sweep across bases|~~--idlist:Generate ids to try"
+      "|#REFERENCE|--patterns:Family table", NULL, "48_bola.sh" },
+};
+
+/* 49_bfla */
+static const PageSpec bfla_pages[] = {
+    { "Overview", "dialog-information-symbolic", NULL, "49_bfla.sh" },
+    { "Functions", "document-open-recent-symbolic",
+      "#ONE FUNCTION|~~--check:One base, one function, one verb"
+      "|~--methods:Which verbs one path answers"
+      "|~--object:Two sessions, one object", NULL, "49_bfla.sh" },
+    { "Sweep", "view-list-symbolic",
+      "#WIDE|~~--sweep:Every function against one base"
+      "|~~--compare:Where two sessions diverge"
+      "|#REFERENCE|--functions:Function table", NULL, "49_bfla.sh" },
+};
+
+/* 50_mass_assign */
+static const PageSpec massassign_pages[] = {
+    { "Overview", "dialog-information-symbolic", NULL, "50_mass_assign.sh" },
+    { "Fields", "document-open-recent-symbolic",
+      "#ONE FIELD|~~~--check:Class, field and readback url"
+      "|#THE FORM|~~--sweep:Every field against one base"
+      "|~--shadow:Read the portal's own swagger", NULL, "50_mass_assign.sh" },
+    { "Reference", "dialog-information-symbolic",
+      "#TABLES|--fields:Field table|--verdicts:How a verdict is reached",
+      NULL, "50_mass_assign.sh" },
+};
+
+/* 52_rate_limit */
+static const PageSpec ratelimit_pages[] = {
+    { "Overview", "dialog-information-symbolic", NULL, "52_rate_limit.sh" },
+    { "Limit", "document-open-recent-symbolic",
+      "#WHERE IT BITES|~~--probe:Count requests to the first limit", NULL,
+      "52_rate_limit.sh" },
+    { "Bypass", "dialog-warning-symbolic",
+      "#ROTATE|~~--rotate:Control, refill, then rotate a header"
+      "|~~--check:Plain versus one headered request"
+      "|#REFERENCE|--headers:Header table|--modes:Header modes",
+      NULL, "52_rate_limit.sh" },
+};
+
+/* 54_ssrf */
+static const PageSpec ssrf_pages[] = {
+    { "Overview", "dialog-information-symbolic", NULL, "54_ssrf.sh" },
+    { "Probe", "document-open-recent-symbolic",
+      "#ONE PARAMETER|~~~--probe:App url, parameter, method"
+      "|~~~--check:App url, parameter, target"
+      "|~~--sweep:Every parameter against one base"
+      "|~~--callback:Listen for a fetch", NULL, "54_ssrf.sh" },
+    { "Reference", "dialog-information-symbolic",
+      "#TABLES|--targets:Fetch targets|--params:Url-taking parameters"
+      "|--vendors:Vendor oracles|~--parse:Parse a saved body"
+      "|~~--save:Keep one body", NULL, "54_ssrf.sh" },
+};
+
+/* 62_version_bypass */
+static const PageSpec version_pages[] = {
+    { "Overview", "dialog-information-symbolic", NULL, "62_version_bypass.sh" },
+    { "Matrix", "document-open-recent-symbolic",
+      "#THE GRID|~~--matrix:Path spellings, query and headers"
+      "|~~--sweep:Every path against one base"
+      "|~~--probe:One path, every slot", NULL, "62_version_bypass.sh" },
+    { "Compare", "view-list-symbolic",
+      "#TWO SESSIONS|~~--compare:Where an old version answers unlocked"
+      "|~--normalise:Show the rewrite slots",
+      NULL, "62_version_bypass.sh" },
+};
+
+/* 64_file_upload */
+static const PageSpec upload_pages[] = {
+    { "Overview", "dialog-information-symbolic", NULL, "64_file_upload.sh" },
+    { "Filters", "document-open-recent-symbolic",
+      "#EXTENSION|~~--check:Walk the extension matrix"
+      "|~~--probe:The content-type axis"
+      "|#CONTENT|--polyglot:A valid image carrying markup"
+      "|~--magic:Sniff one file", NULL, "64_file_upload.sh" },
+    { "Names", "view-list-symbolic",
+      "#FILENAME TRICKS|~--name:Eleven names a blocklist forgets"
+      "|~--sweep:Every endpoint against one base"
+      "|#REFERENCE|--extensions|--types|--endpoints",
+      NULL, "64_file_upload.sh" },
+};
+
+/* 76_debug_endpoints */
+static const PageSpec debug_pages[] = {
+    { "Overview", "dialog-information-symbolic", NULL, "76_debug_endpoints.sh" },
+    { "Sweep", "document-open-recent-symbolic",
+      "#PATH FAMILIES|~--health:Health and probes|~--actuator:Spring actuator"
+      "|~--docs:Swagger and GraphiQL|~--env:Dotenv, config, git"
+      "|~--telco:Operator portals|#EVERYTHING|~~--scan:One host, all families",
+      NULL, "76_debug_endpoints.sh" },
+    { "Check", "view-list-symbolic",
+      "#ONE URL|~--check:Classify one response|~--list:Path catalogue",
+      NULL, "76_debug_endpoints.sh" },
+};
+
+/* 47_auth_bypass — the guard is on the route, not the resource. */
+static const PageSpec authbypass_pages[] = {
+    { "Overview", "dialog-information-symbolic", NULL },
+    { "Gaps", "view-list-symbolic",
+      "#NO TOKEN AT ALL|~--gaps:Every protected path, plain GET"
+      "|#ONE ROUTE|~~--check:Run the vector table against one path"
+      "|~--methods:The verb axis", NULL, "47_auth_bypass.sh" },
+    { "Vectors", "document-open-recent-symbolic",
+      "#SMALLER PASSES|~--headers:Gateway headers that name a path"
+      "|~--case:Case fold|~--trailing:Slash, dot, semicolon"
+      "|~--encoding:Percent, double and overlong|~--cgi:PHP path suffix"
+      "|#THE WHOLE GRID|~--sweep:Every path times every vector"
+      "|~--probe:One full url", NULL, "47_auth_bypass.sh" },
+    { "Reference", "dialog-information-symbolic",
+      "#TABLES|--paths:Protected paths|--vectors:Vector catalogue|--list:All verbs",
+      NULL, "47_auth_bypass.sh" },
+};
+
 /* ---- Master spec table ---- */
 static const ModuleSpec module_specs[] = {
     { "00_deps", S("00_deps.sh"),
@@ -2222,9 +2500,6 @@ static const ModuleSpec module_specs[] = {
     { "03_bucket_enum", S("03_bucket_enum.sh"),
       "Bucket Enum", "Find, probe and rate bucket exposure.",
       bucket_pages, G_N_ELEMENTS(bucket_pages) },
-    { "04_takeover", S("04_takeover.sh"),
-      "Subdomain Takeover", "Fingerprint dangling CNAMEs and claimable services.",
-      takeover_pages, G_N_ELEMENTS(takeover_pages) },
     { "05_iam_privesc", S("05_iam_privesc.sh"),
       "IAM PrivEsc", "Map IAM privilege escalation paths.",
       privesc_pages, G_N_ELEMENTS(privesc_pages) },
@@ -2237,20 +2512,11 @@ static const ModuleSpec module_specs[] = {
     { "08_secrets_scan", S("08_secrets_scan.sh"),
       "Secrets Scanner", "Hunt credentials in files, trees and streams.",
       secrets_pages, G_N_ELEMENTS(secrets_pages) },
-    { "09_ssrf_imds", S("09_ssrf_imds.sh"),
-      "SSRF - IMDS", "Probe proxy-shaped paths into instance metadata.",
-      ssrf_pages, G_N_ELEMENTS(ssrf_pages) },
-    { "10_imdsv2_bypass", S("10_imdsv2_bypass.sh"),
-      "IMDSv2 Bypass", "Techniques that still reach IMDSv2-only hosts.",
-      imds2_pages, G_N_ELEMENTS(imds2_pages) },
-    { "11_user_data", S("11_user_data.sh"),
-      "User Data", "Pull EC2 user-data and instance identity documents.",
-      userdata_pages, G_N_ELEMENTS(userdata_pages) },
-    { "12_lambda_dump", S("12_lambda_dump.sh"),
-      "Lambda Dump", "List functions, dump code, read environment variables.",
-      lambda_pages, G_N_ELEMENTS(lambda_pages) },
-    { "13_serverless_recon", S("13_serverless_recon.sh"),
-      "Serverless Recon", "Enumerate and invoke functions across providers.",
+    { "09_imds", S("09_imds.sh"),
+      "Instance Metadata", "SSRF into IMDS, IMDSv2, user-data and the credentials in them.",
+      imds_pages, G_N_ELEMENTS(imds_pages) },
+    { "12_serverless", S("12_serverless.sh"),
+      "Serverless", "List functions, read their environment, download their code.",
       serverless_pages, G_N_ELEMENTS(serverless_pages) },
     { "14_registry_recon", S("14_registry_recon.sh"),
       "Registry Recon", "Enumerate container registries and marketplaces.",
@@ -2258,21 +2524,12 @@ static const ModuleSpec module_specs[] = {
     { "15_container_escape", S("15_container_escape.sh"),
       "Container Escape", "Detect escape primitives in the current container.",
       escape_pages, G_N_ELEMENTS(escape_pages) },
-    { "16_k8s_attack_surface", S("16_k8s_attack_surface.sh"),
-      "K8s Surface", "Enumerate clusters, workloads and RBAC reach.",
-      k8ssurf_pages, G_N_ELEMENTS(k8ssurf_pages) },
-    { "17_k8s_secrets", S("17_k8s_secrets.sh"),
-      "K8s Secrets", "Extract and decode Kubernetes secrets.",
-      k8ssec_pages, G_N_ELEMENTS(k8ssec_pages) },
-    { "18_cloud_dns", S("18_cloud_dns.sh"),
-      "Cloud DNS", "Hosted zones, records, dangling targets, zone transfers.",
-      dns_pages, G_N_ELEMENTS(dns_pages) },
-    { "19_vpc_map", S("19_vpc_map.sh"),
-      "VPC Map", "Networks, subnets, routes, gateways and what they expose.",
-      vpc_pages, G_N_ELEMENTS(vpc_pages) },
-    { "20_sg_audit", S("20_sg_audit.sh"),
-      "Firewall Audit", "World-open rules, graded by the port class behind them.",
-      sg_pages, G_N_ELEMENTS(sg_pages) },
+    { "16_kubernetes", S("16_kubernetes.sh"),
+      "Kubernetes", "Clusters, workloads, RBAC reach, and the secrets behind it.",
+      kubernetes_pages, G_N_ELEMENTS(kubernetes_pages) },
+    { "18_network", S("18_network.sh"),
+      "Cloud Network", "DNS, dangling records and claimable subdomains, subnets, routes and firewall exposure.",
+      network_pages, G_N_ELEMENTS(network_pages) },
     { "21_db_exposure", S("21_db_exposure.sh"),
       "DB Exposure", "Managed databases, public reachability, endpoint probes.",
       db_pages, G_N_ELEMENTS(db_pages) },
@@ -2282,6 +2539,51 @@ static const ModuleSpec module_specs[] = {
     { "23_persistence", S("23_persistence.sh"),
       "Persistence", "Footholds that already exist, and what removes them.",
       persist_pages, G_N_ELEMENTS(persist_pages) },
+    { "39_tenant_enum", S("39_tenant_enum.sh"),
+      "Tenant Enumeration", "Tenant id, namespaces, exposed APIs, certificate transparency and PTR.",
+      tenant_pages, G_N_ELEMENTS(tenant_pages) },
+    { "41_api_discovery", S("41_api_discovery.sh"),
+      "API Discovery", "Endpoints on a host or a spec, against a measured baseline.",
+      apidisc_pages, G_N_ELEMENTS(apidisc_pages) },
+    { "42_openapi", S("42_openapi.sh"),
+      "OpenAPI Analyzer", "What a spec admits to: per-operation security, ids, url-taking params.",
+      openapi_pages, G_N_ELEMENTS(openapi_pages) },
+    { "43_graphql", S("43_graphql.sh"),
+      "GraphQL Introspection", "A schema the server never meant to hand out.",
+      graphql_pages, G_N_ELEMENTS(graphql_pages) },
+    { "44_jwt", S("44_jwt.sh"),
+      "JWT Attack", "Alg:none, key confusion, kid injection and offline cracking.",
+      jwt_pages, G_N_ELEMENTS(jwt_pages) },
+    { "46_key_harvest", S("46_key_harvest.sh"),
+      "Key Harvest", "Key and token patterns in pages, bundles, headers and specs.",
+      keyharvest_pages, G_N_ELEMENTS(keyharvest_pages) },
+    { "47_auth_bypass", S("47_auth_bypass.sh"),
+      "Auth Bypass", "The guard is on the route, not the resource.",
+      authbypass_pages, G_N_ELEMENTS(authbypass_pages) },
+    { "48_bola", S("48_bola.sh"),
+      "BOLA", "Object-level authorization across subscriber, account and sim ids.",
+      bola_pages, G_N_ELEMENTS(bola_pages) },
+    { "49_bfla", S("49_bfla.sh"),
+      "BFLA", "Function-level authorization across admin, agent and customer verbs.",
+      bfla_pages, G_N_ELEMENTS(bfla_pages) },
+    { "50_mass_assign", S("50_mass_assign.sh"),
+      "Mass Assignment", "Fields the server trusts because the client sent them.",
+      massassign_pages, G_N_ELEMENTS(massassign_pages) },
+    { "52_rate_limit", S("52_rate_limit.sh"),
+      "Rate Limit Bypass", "Forwarding-header rotation against a limit that trusts the header.",
+      ratelimit_pages, G_N_ELEMENTS(ratelimit_pages) },
+    { "54_ssrf", S("54_ssrf.sh"),
+      "SSRF Tester", "Make a server fetch metadata, loopback or a local file, and prove it by content.",
+      ssrf_pages, G_N_ELEMENTS(ssrf_pages) },
+    { "62_version_bypass", S("62_version_bypass.sh"),
+      "Versioning Bypass", "The old version answers while the new one is locked.",
+      version_pages, G_N_ELEMENTS(version_pages) },
+    { "64_file_upload", S("64_file_upload.sh"),
+      "File Upload", "The extension and content-type matrix an upload filter forgets.",
+      upload_pages, G_N_ELEMENTS(upload_pages) },
+    { "76_debug_endpoints", S("76_debug_endpoints.sh"),
+      "Debug Endpoints", "Health, actuator, docs and env endpoints that answer when they should not.",
+      debug_pages, G_N_ELEMENTS(debug_pages) },
 };
 
 static const ModuleSpec *
@@ -2336,6 +2638,14 @@ generic_module_data_new(AppState *state, const ModuleSpec *spec)
 /*  Note: in a real build, register each module here — one function per */
 /*  module_id so the registry can construct its data.                    */
 /* ==================================================================== */
+
+/* Adapter so register_all_modules's fallback can reach the generic factory
+   without a per-module function. */
+static gpointer
+generic_module_data_new_inner(AppState *s)
+{
+    return generic_module_data_new(s, NULL);
+}
 
 static gpointer _new_deps(AppState *s)     { return generic_module_data_new(s, module_spec_for("00_deps")); }
 static gpointer _new_cred(AppState *s)     { return generic_module_data_new(s, module_spec_for("01_cred_validate")); }
@@ -2454,6 +2764,10 @@ register_all_modules(void)
             module_registry_register(spec->id, e, n, _new_ae);
         else if (g_strcmp0(spec->id, "23_persistence") == 0)
             module_registry_register(spec->id, e, n, _new_persist);
+        else
+            /* A module table added to module_specs[] does not need a hand
+               written factory: the generic one carries the same spec. */
+            module_registry_register(spec->id, e, n, generic_module_data_new_inner);
     }
 }
 

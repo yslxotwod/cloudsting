@@ -18,15 +18,16 @@ id	category	phase	title	mission
 23	IDENTITY	9	Persistence	Footholds that outlive the session, per provider
 39	DNS	1	Cloud Tenant Enumeration	Tenant ids, bucket namespaces, exposed APIs, certificate transparency and PTR sweeps
 41	SURFACE	1	API Discovery	Endpoints on a host or a spec, with a baseline so a catch-all page yields nothing
+42	WEBAPI	6	OpenAPI/Swagger Analyzer	Reads a spec and reports what it admits to: per-operation security, ids, url-taking params
+43	WEBAPI	6	GraphQL Introspection	Probes graph paths and reads a schema the server never meant to hand out
+44	WEBAPI	8	JWT Attack	Alg:none, key confusion, kid injection and offline cracking against a token
 46	SURFACE	1	API Key Harvesting	Key and token patterns in pages, script bundles, headers and specs
-76	SURFACE	1	Debug Endpoint Discovery	Health, actuator, docs and env endpoints that answer when they should not
+47	WEBAPI	5	Authentication Bypass	The guard is on the route, not the resource — header, verb, path and encoding deltas
 48	WEBAPI	5	BOLA	Object-level authorization across subscriber, account and sim ids
 49	WEBAPI	5	BFLA	Function-level authorization across admin, agent and customer verbs
 50	WEBAPI	5	Mass Assignment	Fields the server trusts because the client sent them
 52	WEBAPI	8	Rate Limit Bypass	Forwarding-header rotation against a limit that trusts the header
-42	WEBAPI	6	OpenAPI/Swagger Analyzer	Reads a spec and reports what it admits to: per-operation security, ids, url-taking params
-43	WEBAPI	6	GraphQL Introspection	Probes graph paths and reads a schema the server never meant to hand out
 54	WEBAPI	7	SSRF Tester	Makes a server fetch metadata, loopback or a local file, and proves it by content
-64	WEBAPI	8	File Upload Exploit	Walks the extension and content-type matrix an upload filter forgets
-44	WEBAPI	8	JWT Attack	Alg:none, key confusion, kid injection and offline cracking against a token
 62	WEBAPI	8	API Versioning Bypass	The old version answers while the new one is locked
+64	WEBAPI	8	File Upload Exploit	Walks the extension and content-type matrix an upload filter forgets
+76	SURFACE	1	Debug Endpoint Discovery	Health, actuator, docs and env endpoints that answer when they should not

@@ -6,3 +6,9 @@ module 01 --list-formats
 module 44 --list
 module 62 --versions
 continue
+
+# identity is only half the surface: the guard can be on the wrong route
+module 47 --gaps $TARGET
+
+# and a single locked route can answer to a header or a trailing slash
+module 47 --methods $TARGET /api/admin/users

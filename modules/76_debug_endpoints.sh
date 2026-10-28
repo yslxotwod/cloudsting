@@ -321,7 +321,7 @@ de_family() {
 # ── scan ─────────────────────────────────────────────────────────
 de_cmd_scan() {
     local target="${1:-}" group="${2:-all}"
-    [[ -z "$target" ]] && { printf 'usage: 76_debug_endpoints.sh --scan <host|url> [all|health|actuator|docs|env]\n' >&2; return 2; }
+    [[ -z "$target" ]] && { printf 'usage: 76_debug_endpoints.sh --scan <host|url> [all|health|actuator|docs|env|telco]\n' >&2; return 2; }
     command -v curl >/dev/null 2>&1 || { cs_row ERROR "missing tool: curl"; return 3; }
 
     local base; base="$(de_base "$target")"
@@ -470,6 +470,9 @@ de_cmd_check() {
 de_cmd_actuator() { de_cmd_scan "${1:-}" actuator; }
 de_cmd_docs()     { de_cmd_scan "${1:-}" docs; }
 de_cmd_env()      { de_cmd_scan "${1:-}" env; }
+# --telco: the operator estate paths. Same sweep, its own verb, because a
+# management surface is a different family from a spring actuator.
+de_cmd_telco()    { de_cmd_scan "${1:-}" telco; }
 de_cmd_health()   { de_cmd_scan "${1:-}" health; }
 
 de_cmd_list() {
@@ -506,6 +509,8 @@ cloudsting module 76 — Debug Endpoint Discovery v0.21.0
   --actuator <host|url>       only the Spring Boot actuator paths
   --docs <host|url>           only the Swagger/OpenAPI/GraphiQL paths
   --env <host|url>            only the .env/config/.git/server-status paths
+  --telco <host|url>          only the operator estate paths: Rancher, Huawei,
+                              Ericsson, ZTE, MiCollide, PowerDNS, OpenStack
   --check <url>               one URL, full classification, no sweep
   --list [family]             print the path list without probing
   --all <host|url>            the whole sweep
@@ -597,6 +602,7 @@ case "${1:-}" in
     --actuator) shift; de_cmd_actuator "$@";;
     --docs)     shift; de_cmd_docs "$@";;
     --env)      shift; de_cmd_env "$@";;
+    --telco)    shift; de_cmd_telco "$@";;
     --check)    shift; de_cmd_check "$@";;
     --list)     shift; de_cmd_list "$@";;
     --all)      shift; de_cmd_all "$@";;
