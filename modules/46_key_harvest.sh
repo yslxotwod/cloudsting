@@ -460,11 +460,13 @@ kh_selftest() {
     # and rightly. AWS wants 16 upper alnum, SendGrid wants 22+43 and Stripe
     # wants 24+, so each filler is generated past its own minimum.
     local corpus="$CS_SCRATCH/corpus.txt"
+    # a pipe that is closed early kills the writer with SIGPIPE, and under
+    # pipefail that is a failed assignment — strip in a subshell instead
     local sfx upper mid long
-    sfx="$(head -c 600 /dev/urandom | base64 | tr -dc 'a-zA-Z0-9' | cut -c1-48)"
-    upper="$(head -c 600 /dev/urandom | base64 | tr -dc 'A-Z0-9' | cut -c1-16)"
-    mid="$(head -c 600 /dev/urandom | base64 | tr -dc '0-9A-Za-z' | cut -c1-22)"
-    long="$(head -c 600 /dev/urandom | base64 | tr -dc '0-9A-Za-z' | cut -c1-43)"
+    sfx="$(tr -dc 'a-zA-Z0-9' < /dev/urandom 2>/dev/null | head -c 48 || true)"
+    upper="$(tr -dc 'A-Z0-9' < /dev/urandom 2>/dev/null | head -c 16 || true)"
+    mid="$(tr -dc '0-9A-Za-z' < /dev/urandom 2>/dev/null | head -c 22 || true)"
+    long="$(tr -dc '0-9A-Za-z' < /dev/urandom 2>/dev/null | head -c 43 || true)"
     {
         printf 'var a = "AKIA%s";\n' "$upper"
         printf 'var b = "ghp_%s";\n' "$sfx"
