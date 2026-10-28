@@ -1781,7 +1781,10 @@ generic_build_spec_page(AppState *state, GenericModulePage *g,
         }
     }
 
-    items = g_strsplit(page_spec->spec, "|", -1);
+    /* Overview carries spec == NULL by contract: it is the status card, not
+       an action grid. Splitting it blind hands g_strsplit a NULL. */
+    items = page_spec->spec != NULL ? g_strsplit(page_spec->spec, "|", -1)
+                                    : g_strsplit("", "|", -1);
     for (int i = 0; items[i] != NULL; i++) {
         const char *item = items[i];
         if (*item == '\0') continue;
@@ -2758,11 +2761,13 @@ generic_module_data_new(AppState *state, const ModuleSpec *spec)
 /* ==================================================================== */
 
 /* Adapter so register_all_modules's fallback can reach the generic factory
-   without a per-module function. */
+   without a per-module function. It has to carry the spec: every page builder
+   dereferences g->spec->subtitle, so a NULL here opens a page and dies. */
 static gpointer
 generic_module_data_new_inner(AppState *s)
 {
-    return generic_module_data_new(s, NULL);
+    (void) s;
+    return NULL;
 }
 
 static gpointer _new_deps(AppState *s)     { return generic_module_data_new(s, module_spec_for("00_deps")); }
@@ -2799,14 +2804,19 @@ typedef struct {
     ModuleSubmenuEntry *entries;
     int n_entries;
     gpointer (*get_module_data)(AppState *);
+    /* The spec a factory that takes no spec argument still needs. A hand
+       written factory ignores this and looks its own row up; the generic
+       fallback has nothing to look up, so the row is carried here. */
+    const ModuleSpec *spec;
 } ModuleRegistryEntry;
 
 static ModuleRegistryEntry *module_registry = NULL;
 static int module_registry_size = 0;
 
 static void
-module_registry_register(const char *id, ModuleSubmenuEntry *entries,
-                         int n, gpointer (*get_data)(AppState *))
+module_registry_register_spec(const char *id, ModuleSubmenuEntry *entries,
+                              int n, gpointer (*get_data)(AppState *),
+                              const ModuleSpec *spec)
 {
     module_registry = g_realloc(module_registry,
         (module_registry_size + 1) * sizeof(ModuleRegistryEntry));
@@ -2814,7 +2824,15 @@ module_registry_register(const char *id, ModuleSubmenuEntry *entries,
     module_registry[module_registry_size].entries = entries;
     module_registry[module_registry_size].n_entries = n;
     module_registry[module_registry_size].get_module_data = get_data;
+    module_registry[module_registry_size].spec = spec;
     module_registry_size++;
+}
+
+static void
+module_registry_register(const char *id, ModuleSubmenuEntry *entries,
+                         int n, gpointer (*get_data)(AppState *))
+{
+    module_registry_register_spec(id, entries, n, get_data, NULL);
 }
 
 static ModuleRegistryEntry *
@@ -2885,7 +2903,7 @@ register_all_modules(void)
         else
             /* A module table added to module_specs[] does not need a hand
                written factory: the generic one carries the same spec. */
-            module_registry_register(spec->id, e, n, generic_module_data_new_inner);
+            module_registry_register_spec(spec->id, e, n, generic_module_data_new_inner, spec);
     }
 }
 
@@ -3085,6 +3103,10 @@ open_module(AppState *state, const ModuleDefinition *module)
 
     if (reg != NULL) {
         module_data = reg->get_module_data ? reg->get_module_data(state) : NULL;
+        /* a factory handed back nothing cannot build a page: give it the
+           carried spec rather than dereferencing NULL one call later */
+        if (module_data == NULL && reg->spec != NULL)
+            module_data = generic_module_data_new(state, reg->spec);
         page = create_module_page(state, module, reg->entries,
                                   reg->n_entries, module_data);
     } else {
