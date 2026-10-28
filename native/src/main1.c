@@ -2349,6 +2349,30 @@ static const PageSpec jwt_pages[] = {
       "|~~--alg:Try alg:none and key confusion live", NULL, "44_jwt.sh" },
 };
 
+/* 45_oauth — the flow is the attack surface, so the pages follow the flow
+ * order: what the issuer says about itself, then each gate the flow passes. */
+static const PageSpec oauth_pages[] = {
+    { "Overview", "dialog-information-symbolic", NULL, "45_oauth.sh" },
+    { "Issuer", "document-open-recent-symbolic",
+      "#WHAT IT SAYS|~--discover:Read the well-known document"
+      "|~--check:Discovery plus what it admits"
+      "|--paths:Every discovery path tried", NULL, "45_oauth.sh" },
+    { "Registration", "dialog-warning-symbolic",
+      "#REDIRECT_URI|~~~--redirect:Endpoint, client and registered uri"
+      "|--redirects:The variant table"
+      "|#STATE|~~~--state:Is state a nonce or a decoration"
+      "|#CLIENT SECRET|~--pkce:Is PKCE required and is plain allowed", NULL, "45_oauth.sh" },
+    { "Authorization", "network-server-symbolic",
+      "#SCOPE|~~~--scope:Scopes the client never registered"
+      "|#AUTH PARAMS|~~~--login-hint:prompt and login_hint behaviour"
+      "|#GRANT|~~--implicit:response_type=token still on", NULL, "45_oauth.sh" },
+    { "Token", "dialog-password-symbolic",
+      "#FINISH THE FLOW|~~--cursor:Exchange a code, then replay it", NULL, "45_oauth.sh" },
+    { "Reference", "dialog-information-symbolic",
+      "#TABLES|--tests:Every check it runs|--redirects:The redirect variants"
+      "|--paths:Discovery paths", NULL, "45_oauth.sh" },
+};
+
 /* 46_key_harvest */
 static const PageSpec keyharvest_pages[] = {
     { "Overview", "dialog-information-symbolic", NULL, "46_key_harvest.sh" },
@@ -2554,6 +2578,10 @@ static const ModuleSpec module_specs[] = {
     { "44_jwt", S("44_jwt.sh"),
       "JWT Attack", "Alg:none, key confusion, kid injection and offline cracking.",
       jwt_pages, G_N_ELEMENTS(jwt_pages) },
+    { "45_oauth", S("45_oauth.sh"),
+      "OAuth Flow Abuse",
+      "redirect_uri, state, PKCE, scope and prompt — every gate the flow passes",
+      oauth_pages, G_N_ELEMENTS(oauth_pages) },
     { "46_key_harvest", S("46_key_harvest.sh"),
       "Key Harvest", "Key and token patterns in pages, bundles, headers and specs.",
       keyharvest_pages, G_N_ELEMENTS(keyharvest_pages) },
@@ -2585,6 +2613,7 @@ static const ModuleSpec module_specs[] = {
       "Debug Endpoints", "Health, actuator, docs and env endpoints that answer when they should not.",
       debug_pages, G_N_ELEMENTS(debug_pages) },
 };
+
 
 static const ModuleSpec *
 module_spec_for(const char *id)

@@ -12,3 +12,9 @@ module 47 --gaps $TARGET
 
 # and a single locked route can answer to a header or a trailing slash
 module 47 --methods $TARGET /api/admin/users
+
+# every OAuth deployment answers the same questions: what does it publish
+# about itself, does the registration check hold, and did it leave implicit on
+module 45 --check $TARGET
+module 45 --paths
+module 45 --tests

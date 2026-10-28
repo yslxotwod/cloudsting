@@ -404,6 +404,7 @@ standalone, carries its own `--selftest`, and writes TSV.
 | `42_openapi` | Reads a spec and reports what it admits to: per-operation security, ids, url-taking params | 42 checks |
 | `43_graphql` | Probes graph paths and reads a schema the server never meant to hand out | 52 checks |
 | `44_jwt` | Alg:none, key confusion, kid injection and offline cracking against a token | 58 checks |
+| `45_oauth` | Redirect_uri, state, PKCE, scope and prompt — every gate the flow passes | 69 checks |
 | `48_bola` | Object-level authorization across subscriber, account and sim ids | 48 checks |
 | `49_bfla` | Function-level authorization across admin, agent and customer verbs | 48 checks |
 | `50_mass_assign` | Fields the server trusts because the client sent them | 46 checks |
@@ -454,6 +455,9 @@ Each module's own `--help` is the authority; this is the map.
                      --schema --selftest --status-tsv
 44_jwt               --alg --check --claims --crack --forge --help --inspect --jku --keys --kid
                      --list --menu --selftest --status-tsv
+45_oauth             --check --cursor --discover --help --implicit --list --login-hint --menu
+                     --paths --pkce --redirect --redirects --scope --selftest --state
+                     --status-tsv --tests
 46_key_harvest       --all --defang --detect --harvest --headers --help --js --menu --providers
                      --selftest --status-tsv
 48_bola              --check --enumerate --help --idlist --list --matrix --menu --patterns

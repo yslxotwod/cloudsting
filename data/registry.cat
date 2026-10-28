@@ -1,5 +1,5 @@
-id	category	phase	title	mission
 00	SETUP	0	Dependencies	What this box has, what it is missing, and what is actually authenticated
+id	category	phase	title	mission
 01	CREDS	1	Credential Validator	Identify a credential from its shape, validate it offline, probe it live — cloud keys and 23 telco vendor auth oracles
 02	SURFACE	1	Cloud Asset Inventory	Enumerate what the account actually holds across providers
 03	STORAGE	1	Cloud Bucket Enumeration	Storage buckets, their permissions, and their public exposure
@@ -21,6 +21,7 @@ id	category	phase	title	mission
 42	WEBAPI	6	OpenAPI/Swagger Analyzer	Reads a spec and reports what it admits to: per-operation security, ids, url-taking params
 43	WEBAPI	6	GraphQL Introspection	Probes graph paths and reads a schema the server never meant to hand out
 44	WEBAPI	8	JWT Attack	Alg:none, key confusion, kid injection and offline cracking against a token
+45	WEBAPI	5	OAuth Flow Abuse	redirect_uri, state, PKCE, scope and prompt — the flow is the attack surface
 46	SURFACE	1	API Key Harvesting	Key and token patterns in pages, script bundles, headers and specs
 47	WEBAPI	5	Authentication Bypass	The guard is on the route, not the resource — header, verb, path and encoding deltas
 48	WEBAPI	5	BOLA	Object-level authorization across subscriber, account and sim ids
