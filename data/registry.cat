@@ -15,6 +15,7 @@
 21	STORAGE	3	Database Exposure	Managed database instances and which of them answer from the world
 22	ATTRITION	3	Audit Evasion	What the provider records, and where the trail has holes
 23	IDENTITY	9	Persistence	Footholds that outlive the session, per provider
+27	DNS	7	DNS Rebinding	A name that resolves twice — the validator reads the name, the fetcher talks to the address
 39	DNS	1	Cloud Tenant Enumeration	Tenant ids, bucket namespaces, exposed APIs, certificate transparency and PTR sweeps
 41	SURFACE	1	API Discovery	Endpoints on a host or a spec, with a baseline so a catch-all page yields nothing
 42	WEBAPI	6	OpenAPI/Swagger Analyzer	Reads a spec and reports what it admits to: per-operation security, ids, url-taking params

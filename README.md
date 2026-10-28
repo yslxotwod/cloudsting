@@ -367,6 +367,7 @@ standalone, carries its own `--selftest`, and writes TSV.
 
 | Module | Description | Selftest |
 |---|---|---|
+| `27_rebinding` | A name that resolves twice — the validator reads the name, the fetcher talks to the address | 58 checks |
 | `39_tenant_enum` | Tenant ids, bucket namespaces, exposed APIs, certificate transparency and PTR sweeps | 27 checks |
 
 #### Identity
@@ -454,6 +455,8 @@ Each module's own `--help` is the authority; this is the map.
                      --status-tsv
 22_audit_evasion     --blind --explain --help --list --menu --posture --selftest --status-tsv
 23_persistence       --explain --footholds --help --list --menu --selftest --status-tsv
+27_rebinding         --addresses --api --check --help --hosts --list --menu --metadata --pin
+                     --profiles --rebind --responder --selftest --status-tsv --targets --ttl
 39_tenant_enum       --all --apis --azure --buckets --crt --help --menu --projects --ptr
                      --selftest --status-tsv --tenant
 41_api_discovery     --all --discover --help --menu --methods --selftest --spec --status-tsv

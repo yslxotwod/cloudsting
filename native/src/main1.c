@@ -149,6 +149,9 @@ static const ModuleDefinition module_fallback[] = {
     { "23_persistence",   "Persistence",     "IDENTITY",
       "document-save-symbolic",
       "Footholds that survive a credential rotation" },
+    { "27_rebinding",     "DNS Rebinding",   "DNS",
+      "network-workgroup-symbolic",
+      "A name that resolves twice" },
     { "39_tenant_enum",   "Tenant Enum",     "DNS",
       "network-workgroup-symbolic",
       "Tenant id, cert transparency and reverse-DNS per ASN" },
@@ -2447,6 +2450,26 @@ static const PageSpec websocket_pages[] = {
       "|--payloads:The payload table", "57_websocket.sh" },
 };
 
+/* 27_rebinding */
+static const PageSpec rebind_pages[] = {
+    { "Overview", "dialog-information-symbolic", "27_rebinding.sh" },
+    { "Resolve", "view-refresh-symbolic",
+      "#DOES THE NAME HOLD STILL"
+      "|~--check:Resolve twice and compare"
+      "|~--ttl:How fast the answer changes"
+      "|~--pin:What a resolver pins to", "27_rebinding.sh" },
+    { "Rebind", "network-workgroup-symbolic",
+      "#THE FLIP|~--rebind:Serve a zone that answers twice"
+      "|--responder:Print the authoritative server"
+      "|~--hosts:The resolver config, for reproduction", "27_rebinding.sh" },
+    { "Reach", "network-server-symbolic",
+      "#WHAT IS BEHIND THE ADDRESS"
+      "|~--metadata:Make an app fetch the metadata service by name"
+      "|~--api:The same, aimed at an internal service"
+      "|--targets:The reach table"
+      "|--addresses:The addresses a rebind lands on", "27_rebinding.sh" },
+};
+
 /* 44_jwt */
 static const PageSpec jwt_pages[] = {
     { "Overview", "dialog-information-symbolic", "44_jwt.sh" },
@@ -2758,6 +2781,9 @@ static const ModuleSpec module_specs[] = {
     { "43_graphql", S("43_graphql.sh"),
       "GraphQL Introspection", "A schema the server never meant to hand out.",
       graphql_pages, G_N_ELEMENTS(graphql_pages) },
+    { "27_rebinding", S("27_rebinding.sh"), "DNS Rebinding",
+      "A name that resolves twice — the validator reads the name, the fetcher talks to the address",
+      rebind_pages, G_N_ELEMENTS(rebind_pages) },
     { "44_jwt", S("44_jwt.sh"),
       "JWT Attack", "Alg:none, key confusion, kid injection and offline cracking.",
       jwt_pages, G_N_ELEMENTS(jwt_pages) },

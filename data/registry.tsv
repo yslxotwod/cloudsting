@@ -16,6 +16,7 @@ id	slug	title	category	mission	verbs	selftest	phase
 21	21_db_exposure	Database Exposure	STORAGE	Managed database instances and which of them answer from the world	--engines --help --instances --menu --probe --public --selftest --status-tsv	34	3
 22	22_audit_evasion	Audit Evasion	ATTRITION	What the provider records, and where the trail has holes	--blind --explain --help --list --menu --posture --selftest --status-tsv	27	3
 23	23_persistence	Persistence	IDENTITY	Footholds that outlive the session, per provider	--explain --footholds --help --list --menu --selftest --status-tsv	23	9
+27	27_rebinding	DNS Rebinding	DNS	A name that resolves twice — the validator reads the name, the fetcher talks to the address	--addresses --api --check --help --hosts --list --menu --metadata --pin --profiles --rebind --responder --selftest --status-tsv --targets --ttl	58	7
 39	39_tenant_enum	Cloud Tenant Enumeration	DNS	Tenant ids, bucket namespaces, exposed APIs, certificate transparency and PTR sweeps	--all --apis --azure --buckets --crt --help --menu --projects --ptr --selftest --status-tsv --tenant	27	1
 41	41_api_discovery	API Discovery	SURFACE	Endpoints on a host or a spec, with a baseline so a catch-all page yields nothing	--all --discover --help --menu --methods --selftest --spec --status-tsv --wordlist	35	1
 42	42_openapi	OpenAPI/Swagger Analyzer	WEBAPI	Reads a spec and reports what it admits to: per-operation security, ids, url-taking params	--analyze --auth --diff --endpoints --find --help --list --menu --params --selftest --spec --status-tsv	42	6

@@ -52,3 +52,8 @@ module 57 --origins
 # a gRPC endpoint that answers reflection hands out its own service catalogue
 module 56 --codes
 module 56 --payloads
+
+# a name that resolves twice defeats a filter that validates the name and a
+# fetcher that talks to the address — two different lookups, one attack
+module 27 --targets
+module 27 --addresses
