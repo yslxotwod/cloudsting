@@ -431,6 +431,11 @@ standalone, carries its own `--selftest`, and writes TSV.
 | `78_replay_nonce` | The request that still works the second time — check-then-act and the missing nonce store | 37 checks |
 | `69_bfuzz` | The value the schema forbids — what the protobuf decoder accepts, the handler believes | 45 checks |
 | `70_spec_diff` | What changed between two specs, and which change added a door nobody locked | 44 checks |
+| `71_logic` | The rule nobody wrote down — a valid request in the wrong order, and the arithmetic that follows it | 37 checks |
+| `72_race` | Two requests that each pass a check neither should — the window is the bug | 34 checks |
+| `74_llm` | The model box is an API with a budget — prompt lease, instruction channel and an open proxy | 53 checks |
+| `75_rotation` | The credential that outlives its own rotation — a promise tested from the outside | 56 checks |
+| `77_mobile` | The client version is an authorization input, and the app is the only client it expected | 42 checks |
 
 ### Verb reference
 
@@ -522,6 +527,16 @@ Each module's own `--help` is the authority; this is the map.
                     --selftest --status-tsv --techniques --truncate --varint --wire
 70_spec_diff        --auth --classes --deprecated --diff --help --list --menu --new
                     --params --selftest --snapshot --status-tsv
+71_logic            --discount --help --list --menu --price --probe --quantity
+                    --selftest --sequence --status-tsv --techniques --trial
+72_race             --coupon --double-spend --fire --gate --help --limit --list
+                    --menu --probe --selftest --status-tsv --techniques
+74_llm              --cost --help --inject --keys --lease --lease-scan --list
+                    --menu --probe --selftest --status-tsv --techniques --tools
+75_rotation         --grace --help --leak-check --list --menu --old-key --policy
+                    --probe --selftest --status-tsv --techniques --windows
+77_mobile           --cert --config --deep --help --list --menu --probe --selftest
+                    --static --status-tsv --techniques --versions
 60_resp_smuggle     --cache --headers --help --leak --list --menu --params
                     --probe --reflect --selftest --split --status-tsv --vectors
 58_sse              --auth --cors --events --help --inject --list --menu --paths

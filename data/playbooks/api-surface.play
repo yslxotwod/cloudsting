@@ -100,3 +100,10 @@ module 69 --wire
 # 42 reads one spec and asks how bad it is; 70 reads two and asks what moved —
 # the interesting answer is never "an endpoint was added"
 module 70 --classes
+
+module 71 --probe $TARGET
+module 71 --techniques
+module 72 --probe $TARGET
+module 74 --lease $TARGET
+module 75 --techniques
+module 77 --probe $TARGET

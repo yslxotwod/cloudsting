@@ -46,5 +46,10 @@
 68	WEBAPI	6	GraphQL Query Cost	Depth, aliases, batching and fragments — the curve between a cheap query and a ruinous one
 69	WEBAPI	6	Binary / Protobuf Fuzzing	The value the schema forbids — what the decoder accepts, the handler believes
 70	WEBAPI	6	Spec Diff	What changed between two specs, and which change added a door nobody locked
+71	WEBAPI	8	Business Logic	The rule nobody wrote down — a valid request, in the wrong order
+72	WEBAPI	8	Race Condition	Two requests that each pass a check neither should
+74	WEBAPI	7	LLM Endpoint	The model box is an API with a budget and somebody's key
+75	IDENTITY	9	Key Rotation	The credential that outlives its own rotation
 76	SURFACE	1	Debug Endpoint Discovery	Health, actuator, docs and env endpoints that answer when they should not
+77	SURFACE	7	Mobile Backend	The client version is an authorization input
 78	WEBAPI	8	Replay & Nonce	The request that still works the second time — check-then-act and the missing nonce store

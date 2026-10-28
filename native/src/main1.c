@@ -161,6 +161,21 @@ static const ModuleDefinition module_fallback[] = {
     { "63_pagination",    "Pagination Abuse",   "WEBAPI",
       "view-list-symbolic",
       "A list endpoint that will hand over the table" },
+    { "71_logic",         "Business Logic",   "WEBAPI",
+      "dialog-information-symbolic",
+      "The rule nobody wrote down — a valid request, in the wrong order" },
+    { "72_race",          "Race Condition",   "WEBAPI",
+      "system-run-symbolic",
+      "Two requests that each pass a check neither should" },
+    { "74_llm",           "LLM Endpoint",     "WEBAPI",
+      "applications-science-symbolic",
+      "The model box is an API with a budget" },
+    { "75_rotation",      "Key Rotation",     "IDENTITY",
+      "dialog-password-symbolic",
+      "The credential that outlives its own rotation" },
+    { "77_mobile",        "Mobile Backend",   "SURFACE",
+      "phone-symbolic",
+      "The client version is an authorization input" },
     { "39_tenant_enum",   "Tenant Enum",     "DNS",
       "network-workgroup-symbolic",
       "Tenant id, cert transparency and reverse-DNS per ASN" },
@@ -2661,6 +2676,108 @@ static const PageSpec bfuzz_pages[] = {
       "|--techniques:Every mutation|--wire:Wire types|--help:Usage", "69_bfuzz.sh" },
 };
 
+/* 71_logic */
+static const PageSpec logic_pages[] = {
+    { "Overview", "dialog-information-symbolic", "71_logic.sh" },
+    { "Baseline", "document-save-symbolic",
+      "#WHAT DOES ONE UNIT COST"
+      "|~--probe:Measure the untouched price every other verb compares to"
+      "|~--techniques:Every shape worth trying", "71_logic.sh" },
+    { "Quantity", "list-add-symbolic",
+      "#THE NUMBER THE CLIENT NAMES"
+      "|~--quantity:Negative, zero, overflowing and fractional amounts", "71_logic.sh" },
+    { "Price", "document-edit-symbolic",
+      "#DOES THE CLIENT OWN THE PRICE"
+      "|~--price:A price field the server should be setting, and a currency swap", "71_logic.sh" },
+    { "Sequence", "media-playlist-repeat-symbolic",
+      "#THE ORDER IS THE ATTACK"
+      "|~--sequence:Two legitimate actions whose order breaks the rule"
+      "|~--trial:Refund above payment, premium on a trial"
+      "|~--discount:The same coupon twice, and two at once", "71_logic.sh" },
+    { "Reference", "help-about-symbolic",
+      "|--list:Verbs|--help:Usage", "71_logic.sh" },
+};
+
+/* 72_race */
+static const PageSpec race_pages[] = {
+    { "Overview", "dialog-information-symbolic", "72_race.sh" },
+    { "Probe", "system-run-symbolic",
+      "#ONE ALONE, THEN TWENTY TOGETHER"
+      "|~--probe:The contrast is the finding"
+      "|~--fire:Raw concurrency with no interpretation", "72_race.sh" },
+    { "Money", "emblem-money-symbolic",
+      "#THE CASE THAT HAS A BILL"
+      "|~--double-spend:Concurrent debits after one balance read"
+      "|~--coupon:One code, many redemptions at once"
+      "|~--limit:A rolling window fired simultaneously", "72_race.sh" },
+    { "Gate", "channel-secure-symbolic",
+      "#DOES THE ENDPOINT SERIALISE AT ALL"
+      "|~--gate:Distinct responses, which is what a lock looks like", "72_race.sh" },
+    { "Reference", "help-about-symbolic",
+      "|--techniques:Every check-then-act shape|--list:Verbs|--help:Usage", "72_race.sh" },
+};
+
+/* 74_llm */
+static const PageSpec llm_pages[] = {
+    { "Overview", "dialog-information-symbolic", "74_llm.sh" },
+    { "Discover", "system-search-symbolic",
+      "#IS THERE A MODEL HERE"
+      "|~--probe:One request, and whether it wants a credential"
+      "|~--keys:Every known route fired without one"
+      "|~--lease-scan:All routes with the config-leak probe", "74_llm.sh" },
+    { "Lease", "dialog-password-symbolic",
+      "#WHAT THE MODEL WAS TOLD"
+      "|~--lease:System prompt, server key and config probes", "74_llm.sh" },
+    { "Inject", "text-x-generic-symbolic",
+      "#THE INSTRUCTION CHANNEL"
+      "|~--inject:Can user text become a system message"
+      "|~--tools:What the agent behind the model can reach", "74_llm.sh" },
+    { "Cost", "preferences-system-time-symbolic",
+      "#ONE REQUEST, HOW MUCH"
+      "|~--cost:Is there a ceiling on time or size", "74_llm.sh" },
+    { "Reference", "help-about-symbolic",
+      "|--techniques:Probes and routes|--list:Verbs|--help:Usage", "74_llm.sh" },
+};
+
+/* 75_rotation */
+static const PageSpec rotation_pages[] = {
+    { "Overview", "dialog-information-symbolic", "75_rotation.sh" },
+    { "Revocation", "dialog-password-symbolic",
+      "#IS THE OLD KEY DEAD"
+      "|~~--old-key:The retired credential against the same route as the new one"
+      "|~~--leak-check:A credential from an earlier finding", "75_rotation.sh" },
+    { "Window", "preferences-system-time-symbolic",
+      "#HOW LONG AFTER THE ROTATION"
+      "|~~~--grace:The old key plus the clock, against the advertised window", "75_rotation.sh" },
+    { "Policy", "channel-secure-symbolic",
+      "#WHERE THE CREDENTIAL IS ACCEPTED"
+      "|~--policy:Every transport, so a key in the query string shows up"
+      "|~--windows:exp, nbf and the lifetime a rotation cannot beat", "75_rotation.sh" },
+    { "Reference", "help-about-symbolic",
+      "|--techniques:Transports and checks|--list:Verbs|--help:Usage", "75_rotation.sh" },
+};
+
+/* 77_mobile */
+static const PageSpec mobile_pages[] = {
+    { "Overview", "dialog-information-symbolic", "77_mobile.sh" },
+    { "Discover", "system-search-symbolic",
+      "#WHAT A MOBILE BACKEND EXPOSES"
+      "|~--probe:Config, flags, bootstrap, device routes"
+      "|~--static:Debug APKs and build artefacts on the production origin", "77_mobile.sh" },
+    { "Config", "document-open-symbolic",
+      "#WHAT IS INSIDE THE REMOTE CONFIG"
+      "|~~--config:One document, graded by content not by status", "77_mobile.sh" },
+    { "Versions", "view-refresh-symbolic",
+      "#AN ANCIENT VERSION AND A FUTURE ONE"
+      "|~--versions:Both, because one alone proves nothing", "77_mobile.sh" },
+    { "Links", "web-browser-symbolic",
+      "#WHO MAY OPEN THIS HOST'S LINKS"
+      "|~--deep:assetlinks.json and the Apple association file"
+      "|~--cert:The TLS the app's traffic actually gets", "77_mobile.sh" },
+    { "Reference", "help-about-symbolic",
+      "|--techniques:Headers and routes|--list:Verbs|--help:Usage", "77_mobile.sh" },
+};
+
 /* 70_spec_diff */
 static const PageSpec specdiff_pages[] = {
     { "Overview", "dialog-information-symbolic", "70_spec_diff.sh" },
@@ -3074,6 +3191,21 @@ static const ModuleSpec module_specs[] = {
     { "70_spec_diff", S("70_spec_diff.sh"),
       "Spec Diff", "What changed between two specs, and which change added a door nobody locked.",
       specdiff_pages, G_N_ELEMENTS(specdiff_pages) },
+    { "71_logic", S("71_logic.sh"),
+      "Business Logic", "The rule nobody wrote down — a valid request, in the wrong order.",
+      logic_pages, G_N_ELEMENTS(logic_pages) },
+    { "72_race", S("72_race.sh"),
+      "Race Condition", "Two requests that each pass a check neither should — the window is the bug.",
+      race_pages, G_N_ELEMENTS(race_pages) },
+    { "74_llm", S("74_llm.sh"),
+      "LLM Endpoint", "The model box is an API with a budget and somebody's key behind it.",
+      llm_pages, G_N_ELEMENTS(llm_pages) },
+    { "75_rotation", S("75_rotation.sh"),
+      "Key Rotation", "The credential that outlives its own rotation — a promise, tested from outside.",
+      rotation_pages, G_N_ELEMENTS(rotation_pages) },
+    { "77_mobile", S("77_mobile.sh"),
+      "Mobile Backend", "The client version is an authorization input, and the app is the only client it expected.",
+      mobile_pages, G_N_ELEMENTS(mobile_pages) },
     { "66_webhook_sig", S("66_webhook_sig.sh"),
       "Webhook Signature", "A signature nobody checked — control first, then every receiver mistake.",
       websig_pages, G_N_ELEMENTS(websig_pages) },
