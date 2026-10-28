@@ -10,7 +10,7 @@ REST/GraphQL surfaces that sit in front of them.
 Every module is a standalone script. The GUI is a view over them, not a
 container — nothing is locked behind the interface.
 
-> **Early development, and honest about it.** Eighteen of the eighty-four
+> **Early development, and honest about it.** Nineteen of the eighty-four
 > planned modules exist. No cloud account has been touched from this tree: there
 > are no provider credentials on the machine it was built on, so every live path
 > is written and reviewed but **not** exercised against a real provider.
@@ -145,7 +145,7 @@ a filter by severity.
 
 ## Modules
 
-Eighteen modules, grouped by the categories the application itself uses, so this
+Nineteen modules, grouped by the categories the application itself uses, so this
 list and the Dashboard cannot drift apart.
 
 ### System
@@ -169,6 +169,7 @@ list and the Dashboard cannot drift apart.
 | `04_takeover` | Subdomain takeover: fingerprint the body, classify the dangling CNAME, name the claimable service | 10 checks |
 | `13_serverless_recon` | Serverless functions across AWS, GCP and Azure: list, environment, URLs, invoke | 8 checks |
 | `14_registry_recon` | Container registries — ECR, GAR, ACR and Docker Hub OSINT | 8 checks |
+| `18_cloud_dns` | Hosted zones across Route 53, Cloud DNS and Azure DNS; record dumps; dead-CNAME audit; zone transfers | 21 checks |
 
 ### Exploit
 
@@ -222,16 +223,18 @@ Each module's own `--help` is the authority; this is the map.
 16_k8s_attack_surface --clusters --nodes --pods --rbac --secrets --all --list --status-tsv
 17_k8s_secrets       --extract --decode <ns> <secret> --sa-tokens --rbac-abuse --all
                      --list --status-tsv
+18_cloud_dns         --zones --records <zone> --resolve <name> [type] --dangling <zone>
+                     --axfr <zone> --all --list --status-tsv
 ```
 
 ### Not built yet
 
-Sixty-six modules are planned and unbuilt. They are listed here so the gap is
+Sixty-five modules are planned and unbuilt. They are listed here so the gap is
 visible rather than implied:
 
 | Range | Planned |
 |---|---|
-| 18–30 | Cloud DNS enumeration, VPC mapping, security-group audit, database exposure, audit-log evasion, persistence, cross-account trust, snapshot theft, event/webhook abuse, metadata DNS rebinding, CI/CD attack, WAF bypass, edge exploitation |
+| 19–30 | VPC mapping, security-group audit, database exposure, audit-log evasion, persistence, cross-account trust, snapshot theft, event/webhook abuse, metadata DNS rebinding, CI/CD attack, WAF bypass, edge exploitation |
 | 31–40 | Vault extraction, provider API fuzzing, mail/SES abuse, console hijack, fleet sync, cryptojacking, backup ransom, cloud AD, tenant OSINT, canary hunting |
 | 41–60 | API discovery, OpenAPI and GraphQL mapping, JWT and OAuth abuse, API-key harvesting, auth bypass, BOLA/BFLA, mass assignment, HPP, rate-limit abuse, injection, SSRF, webhooks, gRPC, WebSocket, SSE, request smuggling, response leaks, CORS, versioning, pagination |
 | 61–78 | Upload abuse, deserialization, webhook signatures, session and refresh abuse, GraphQL DoS, binary fuzzing, spec diffing, business logic, race conditions, API DNS rebinding, LLM endpoints, key rotation, debug endpoints, mobile backends, replay |
@@ -256,6 +259,9 @@ visible rather than implied:
   policies that should and should not match
 - Secret scanning: all sixteen signature families against synthetic fixtures
 - IMDS endpoint table and the IMDSv2 technique list
+- DNS: live resolution through `dig` (module 18 resolves real names), the
+  dead-CNAME verdict (`dangling` / `live` / `unobserved`), and zone-provider
+  classification; the zone and record dumps were driven against a Route 53 shim
 - Container escape detection: capability decoding, mount, namespace, cgroup and
   socket checks against this machine
 - Every module's `--status-tsv`, `--help` and `--selftest` contract
@@ -271,6 +277,8 @@ on the build machine:
   `--probe`/`--tunnel` SSRF, `--dhl` Docker Hub lookups (this one was tested
   against the live API, and is the exception)
 - Kubernetes verbs, for want of a cluster
+- Hosted-zone enumeration and record dumps against Route 53, Cloud DNS and
+  Azure DNS: no credentials, so only the parsers ran, on canned output
 
 The code is written and reviewed. **"Written" and "works" are not the same
 claim,** and this section exists so nobody has to guess which one applies.

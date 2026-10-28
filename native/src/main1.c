@@ -156,6 +156,9 @@ static const ModuleDefinition modules[] = {
     { "17_k8s_secrets",      "K8s Secrets",      "EXPLOIT",
       "dialog-password-symbolic",
       "Extract and decode Kubernetes secrets and SA tokens" },
+    { "18_cloud_dns",        "Cloud DNS",        "RECON",
+      "network-server-symbolic",
+      "List hosted zones, dump records, audit dead CNAME targets" },
 };
 
 /* ==================================================================== */
@@ -1007,6 +1010,10 @@ spec_arg_placeholder(const char *verb)
         { "--env",      "function name" },
         { "--invoke",   "function name" },
         { "--decode",   "namespace secret" },
+        { "--resolve",  "example.com" },
+        { "--records",  "zone id" },
+        { "--dangling", "zone id" },
+        { "--axfr",     "zone name" },
         { "--ssrf",     "target url" },
         { "--exec",     "target url" },
         { "install",    "package name" },
@@ -1268,9 +1275,14 @@ page_verb_clicked(GtkButton *button, gpointer ud)
         gtk_label_set_text(GTK_LABEL(r->status), "running…");
     cs_output_set(r->view, "running…");
 
+    /* A module that lost its exec bit still runs: fall back to `bash script`.
+     * pkexec needs the same treatment so the fallback survives privilege. */
+    gboolean need_shell = !g_file_test(r->spec->script, G_FILE_TEST_IS_EXECUTABLE);
+
     if (privileged) {
         GPtrArray *full = g_ptr_array_new();
         g_ptr_array_add(full, (gpointer) "pkexec");
+        if (need_shell) g_ptr_array_add(full, (gpointer) "bash");
         for (guint k = 0; argv[k] != NULL; k++) g_ptr_array_add(full, (gpointer) argv[k]);
         g_ptr_array_add(full, NULL);
         r->proc = g_subprocess_newv((const char * const *) full->pdata,
@@ -1278,13 +1290,21 @@ page_verb_clicked(GtkButton *button, gpointer ud)
             NULL);
         g_ptr_array_unref(full);
     } else {
-        r->proc = g_subprocess_newv(argv,
+        const char *spawn_argv[9];
+        guint n = 0;
+        if (need_shell) spawn_argv[n++] = "bash";
+        for (guint k = 0; argv[k] != NULL && n < 9; k++) spawn_argv[n++] = argv[k];
+        spawn_argv[n] = NULL;
+        r->proc = g_subprocess_newv(spawn_argv,
             G_SUBPROCESS_FLAGS_STDOUT_PIPE | G_SUBPROCESS_FLAGS_STDERR_PIPE,
             NULL);
     }
 
     if (r->proc == NULL) {
-        cs_output_set(r->view, "error: could not start the module script");
+        g_autofree char *msg = g_strdup_printf(
+            "error: could not start %s (missing file, or no permission to execute it)",
+            r->spec->script);
+        cs_output_set(r->view, msg);
         if (r->status != NULL) gtk_label_set_text(GTK_LABEL(r->status), "failed");
         return;
     }
@@ -1770,6 +1790,19 @@ static const PageSpec k8ssec_pages[] = {
       "|#REFERENCE|--list:Verb list" },
 };
 
+/* ---- 18_cloud_dns ---- */
+static const PageSpec dns_pages[] = {
+    { "Overview", "dialog-information-symbolic", NULL },
+    { "Zones", "network-server-symbolic",
+      "#HOSTED ZONES|--zones:List hosted zones|--all:Zones then dangling audit"
+      "|#ONE NAME|~--resolve:Resolve a name" },
+    { "Records", "view-list-symbolic",
+      "#ZONE CONTENT|~--records:Dump zone records"
+      "|~--dangling:Audit dead CNAME targets" },
+    { "Transfer", "security-high-symbolic",
+      "#AXFR|~--axfr:Attempt a zone transfer|#REFERENCE|--list:Technique list" },
+};
+
 /* ---- Master spec table ---- */
 static const ModuleSpec module_specs[] = {
     { "00_deps", S("00_deps.sh"),
@@ -1826,6 +1859,9 @@ static const ModuleSpec module_specs[] = {
     { "17_k8s_secrets", S("17_k8s_secrets.sh"),
       "K8s Secrets", "Extract and decode Kubernetes secrets.",
       k8ssec_pages, G_N_ELEMENTS(k8ssec_pages) },
+    { "18_cloud_dns", S("18_cloud_dns.sh"),
+      "Cloud DNS", "Hosted zones, records, dangling targets, zone transfers.",
+      dns_pages, G_N_ELEMENTS(dns_pages) },
 };
 
 static const ModuleSpec *
@@ -1899,6 +1935,7 @@ static gpointer _new_registry(AppState *s)   { return generic_module_data_new(s,
 static gpointer _new_escape(AppState *s)     { return generic_module_data_new(s, module_spec_for("15_container_escape")); }
 static gpointer _new_k8ssurf(AppState *s)    { return generic_module_data_new(s, module_spec_for("16_k8s_attack_surface")); }
 static gpointer _new_k8ssec(AppState *s)     { return generic_module_data_new(s, module_spec_for("17_k8s_secrets")); }
+static gpointer _new_dns(AppState *s)        { return generic_module_data_new(s, module_spec_for("18_cloud_dns")); }
 
 /* ==================================================================== */
 /*  Module registry                                                      */
@@ -1980,6 +2017,8 @@ register_all_modules(void)
             module_registry_register(spec->id, e, n, _new_k8ssurf);
         else if (g_strcmp0(spec->id, "17_k8s_secrets") == 0)
             module_registry_register(spec->id, e, n, _new_k8ssec);
+        else if (g_strcmp0(spec->id, "18_cloud_dns") == 0)
+            module_registry_register(spec->id, e, n, _new_dns);
     }
 }
 
