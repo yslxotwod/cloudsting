@@ -18,3 +18,8 @@ module 47 --methods $TARGET /api/admin/users
 module 45 --check $TARGET
 module 45 --paths
 module 45 --tests
+
+# a duplicate parameter is the cheapest way past a badly aligned gateway; the
+# table covers the shapes that actually fold
+module 51 --list
+module 51 --params

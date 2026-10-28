@@ -2424,6 +2424,24 @@ static const PageSpec massassign_pages[] = {
       NULL, "50_mass_assign.sh" },
 };
 
+/* 51_hpp — the parameter has one name and the server reads it twice */
+static const PageSpec hpp_pages[] = {
+    { "Overview", "dialog-information-symbolic", NULL, "51_hpp.sh" },
+    { "Duplicate", "document-open-recent-symbolic",
+      "#ONE PARAMETER|~~~--check:Url and parameter, every shape"
+      "|~--dup:Just the plain duplicate"
+      "|#WHICH PARSER|~~--split:Attribute the fold to a class", NULL, "51_hpp.sh" },
+    { "Encodings", "network-transmit-symbolic",
+      "#SYNTAX|~~--array:Array shapes an app may flatten"
+      "|~~--encoding:What a proxy splits on"
+      "|~~--smuggle:The pair a filter misses", NULL, "51_hpp.sh" },
+    { "Body", "dialog-password-symbolic",
+      "#JSON AND QUERY|~~--json:Same name in both places"
+      "|~~--query:One unchallenged read", NULL, "51_hpp.sh" },
+    { "Reference", "dialog-information-symbolic",
+      "#TABLES|--params:Parameters worth planting|--list:Every vector", NULL, "51_hpp.sh" },
+};
+
 /* 52_rate_limit */
 static const PageSpec ratelimit_pages[] = {
     { "Overview", "dialog-information-symbolic", NULL, "52_rate_limit.sh" },
@@ -2597,6 +2615,10 @@ static const ModuleSpec module_specs[] = {
     { "50_mass_assign", S("50_mass_assign.sh"),
       "Mass Assignment", "Fields the server trusts because the client sent them.",
       massassign_pages, G_N_ELEMENTS(massassign_pages) },
+    { "51_hpp", S("51_hpp.sh"),
+      "Parameter Pollution",
+      "One parameter, two meanings — the duplicate, array and encoding shapes a parser folds.",
+      hpp_pages, G_N_ELEMENTS(hpp_pages) },
     { "52_rate_limit", S("52_rate_limit.sh"),
       "Rate Limit Bypass", "Forwarding-header rotation against a limit that trusts the header.",
       ratelimit_pages, G_N_ELEMENTS(ratelimit_pages) },

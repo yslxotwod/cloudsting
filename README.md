@@ -408,6 +408,7 @@ standalone, carries its own `--selftest`, and writes TSV.
 | `48_bola` | Object-level authorization across subscriber, account and sim ids | 48 checks |
 | `49_bfla` | Function-level authorization across admin, agent and customer verbs | 48 checks |
 | `50_mass_assign` | Fields the server trusts because the client sent them | 46 checks |
+| `51_hpp` | One parameter, two meanings — the duplicate, array and encoding shapes a parser folds | 54 checks |
 | `52_rate_limit` | Forwarding-header rotation against a limit that trusts the header | 48 checks |
 | `54_ssrf` | Makes a server fetch metadata, loopback or a local file, and proves it by content | 43 checks |
 | `62_version_bypass` | The old version answers while the new one is locked | 38 checks |
@@ -466,6 +467,8 @@ Each module's own `--help` is the authority; this is the map.
                      --selftest --status-tsv --sweep
 50_mass_assign       --check --fields --help --list --menu --selftest --shadow --status-tsv
                      --sweep --verdicts
+51_hpp               --array --check --dup --encoding --help --json --list --menu --params
+                     --query --selftest --smuggle --split --status-tsv
 52_rate_limit        --check --headers --help --list --menu --modes --probe --rotate --selftest
                      --status-tsv
 54_ssrf              --callback --check --help --list --menu --params --parse --probe --save
