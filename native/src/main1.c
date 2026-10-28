@@ -159,6 +159,9 @@ static const ModuleDefinition modules[] = {
     { "18_cloud_dns",        "Cloud DNS",        "RECON",
       "network-server-symbolic",
       "List hosted zones, dump records, audit dead CNAME targets" },
+    { "19_vpc_map",          "VPC Map",          "RECON",
+      "network-transmit-receive-symbolic",
+      "Map virtual networks, subnets, routes and gateways" },
 };
 
 /* ==================================================================== */
@@ -1803,6 +1806,16 @@ static const PageSpec dns_pages[] = {
       "#AXFR|~--axfr:Attempt a zone transfer|#REFERENCE|--list:Technique list" },
 };
 
+/* ---- 19_vpc_map ---- */
+static const PageSpec vpc_pages[] = {
+    { "Overview", "dialog-information-symbolic", NULL },
+    { "Topology", "network-transmit-receive-symbolic",
+      "#NETWORK|--vpcs:List virtual networks|--subnets:List subnets"
+      "|--routes:List route tables|--gateways:List gateways"},
+    { "Map", "view-fullscreen-symbolic",
+      "#EXPOSURE|--map:Full map and findings|#REFERENCE|--list:Verb reference" },
+};
+
 /* ---- Master spec table ---- */
 static const ModuleSpec module_specs[] = {
     { "00_deps", S("00_deps.sh"),
@@ -1862,6 +1875,9 @@ static const ModuleSpec module_specs[] = {
     { "18_cloud_dns", S("18_cloud_dns.sh"),
       "Cloud DNS", "Hosted zones, records, dangling targets, zone transfers.",
       dns_pages, G_N_ELEMENTS(dns_pages) },
+    { "19_vpc_map", S("19_vpc_map.sh"),
+      "VPC Map", "Networks, subnets, routes, gateways and what they expose.",
+      vpc_pages, G_N_ELEMENTS(vpc_pages) },
 };
 
 static const ModuleSpec *
@@ -1936,6 +1952,7 @@ static gpointer _new_escape(AppState *s)     { return generic_module_data_new(s,
 static gpointer _new_k8ssurf(AppState *s)    { return generic_module_data_new(s, module_spec_for("16_k8s_attack_surface")); }
 static gpointer _new_k8ssec(AppState *s)     { return generic_module_data_new(s, module_spec_for("17_k8s_secrets")); }
 static gpointer _new_dns(AppState *s)        { return generic_module_data_new(s, module_spec_for("18_cloud_dns")); }
+static gpointer _new_vpc(AppState *s)        { return generic_module_data_new(s, module_spec_for("19_vpc_map")); }
 
 /* ==================================================================== */
 /*  Module registry                                                      */
@@ -2019,6 +2036,8 @@ register_all_modules(void)
             module_registry_register(spec->id, e, n, _new_k8ssec);
         else if (g_strcmp0(spec->id, "18_cloud_dns") == 0)
             module_registry_register(spec->id, e, n, _new_dns);
+        else if (g_strcmp0(spec->id, "19_vpc_map") == 0)
+            module_registry_register(spec->id, e, n, _new_vpc);
     }
 }
 
