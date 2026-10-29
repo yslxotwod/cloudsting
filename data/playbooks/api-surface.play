@@ -107,3 +107,15 @@ module 72 --probe $TARGET
 module 74 --lease $TARGET
 module 75 --techniques
 module 77 --probe $TARGET
+
+# the edge is a second parser in front of the first one, and the two rarely
+# agree: name what is in front and whether it refuses anything at all before
+# asking it to be wrong
+module 29 --detect $TARGET
+module 29 --variants /admin
+module 29 --bypass $TARGET /admin
+
+# a limiter keyed on the client address is keyed on a header the client sets,
+# and the origin trusting that header makes every allowlist in front cosmetic
+module 29 --headers $TARGET
+module 29 --rate $TARGET /

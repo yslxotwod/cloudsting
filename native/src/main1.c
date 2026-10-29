@@ -275,6 +275,9 @@ static const ModuleDefinition module_fallback[] = {
     { "76_debug_endpoints", "Debug Endpoints", "SURFACE",
       "utilities-system-monitor-symbolic",
       "Health, actuator, docs and env endpoints" },
+    { "29_waf_bypass", "Cloud WAF Bypass", "WEBAPI",
+      "network-server-symbolic",
+      "The edge and the origin disagree about the same path" },
 };
 
 /* Category → icon. A registry row carries no icon column: the category
@@ -3108,6 +3111,26 @@ static const PageSpec cicd_pages[] = {
       "#PROOF|~--forge:Print a minimal workflow|--probe:Provider state|--list:Verb list" },
 };
 
+/* 29_waf_bypass — the edge and the origin disagree about the same path. */
+static const PageSpec waf_pages[] = {
+    { "Overview", "dialog-information-symbolic", NULL },
+    { "Edge", "network-wired-symbolic",
+      "#WHAT IS IN FRONT|~--detect:Name the edge, measure its refusal"
+      "|#PAST THE RULE|~--bypass:25 normalisation forms of one path"
+      "|~--variants:The variant list, nothing sent",
+      "29_waf_bypass.sh" },
+    { "Trust", "dialog-password-symbolic",
+      "#HEADERS THE ORIGIN BELIEVES|~--headers:Which proxy header changes the answer"
+      "|#THE LIMITER KEY|~--rate:One burst, then the same burst rotated",
+      "29_waf_bypass.sh" },
+    { "Origin", "folder-remote-symbolic",
+      "#A NAME THAT SKIPS THE EDGE|~--origin:Certificate names that answer directly",
+      "29_waf_bypass.sh" },
+    { "Reference", "view-list-symbolic",
+      "#TABLES|--vendors:Edges this module recognises|--status-tsv:Module status",
+      "29_waf_bypass.sh" },
+};
+
 /* ---- Master spec table ---- */
 static const ModuleSpec module_specs[] = {
     { "00_deps", S("00_deps.sh"),
@@ -3293,6 +3316,9 @@ static const ModuleSpec module_specs[] = {
     { "76_debug_endpoints", S("76_debug_endpoints.sh"),
       "Debug Endpoints", "Health, actuator, docs and env endpoints that answer when they should not.",
       debug_pages, G_N_ELEMENTS(debug_pages) },
+    { "29_waf_bypass", S("29_waf_bypass.sh"),
+      "Cloud WAF Bypass", "The edge and the origin disagree about the same path — normalisation forms measured against a measured block signature.",
+      waf_pages, G_N_ELEMENTS(waf_pages) },
 };
 
 

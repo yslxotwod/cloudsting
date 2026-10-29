@@ -3,3 +3,7 @@ tmp
 logs
 state
 *.last
+
+# a stray "-" appears when a tool is handed "-" as an output path
+# (curl --output -, some fuzzers) and writes a file instead of stdout
+-

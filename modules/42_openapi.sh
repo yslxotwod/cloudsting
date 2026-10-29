@@ -458,6 +458,11 @@ HELP
 # ── Selftest ─────────────────────────────────────────────────────
 oa_selftest() {
     cs_selftest_reset
+    # analyze writes findings; without this the selftest appends its own
+    # fixtures to the real ledger every time the suite runs
+    local real_loot="$CS_LOOT"
+    CS_LOOT="$CS_SCRATCH"
+    mkdir -p "$CS_LOOT"
 
     chk paths-many    "$( (( $(oa_paths | wc -l) >= 15 )) && echo many || echo few )" "many"
     chk paths-slash   "$(oa_paths | awk '$1 !~ /^\//{c++} END{print c+0}')" "0"
@@ -565,6 +570,7 @@ JSON
     chk list-many     "$(oa_cmd_list | wc -l | tr -d ' ' | awk '{print ($1>=20)?"yes":"no"}')" "yes"
 
     rm -f "$fx" "$fx2" "$html" 2>/dev/null
+    CS_LOOT="$real_loot"
     cs_selftest_done
 }
 

@@ -408,6 +408,7 @@ standalone, carries its own `--selftest`, and writes TSV.
 
 | Module | Description | Selftest |
 |---|---|---|
+| `29_waf_bypass` | The edge and the origin disagree about the same path — 25 normalisation forms measured against a measured block signature, plus names that answer without the edge | 74 checks |
 | `42_openapi` | Reads a spec and reports what it admits to: per-operation security, ids, url-taking params | 42 checks |
 | `43_graphql` | Probes graph paths and reads a schema the server never meant to hand out | 52 checks |
 | `44_jwt` | Alg:none, key confusion, kid injection and offline cracking against a token | 58 checks |
@@ -557,6 +558,8 @@ Each module's own `--help` is the authority; this is the map.
                      --menu --mutate --probe --rungs --selftest --status-tsv --techniques
 76_debug_endpoints   --actuator --all --check --docs --env --health --help --list --menu --scan
                      --selftest --status-tsv
+29_waf_bypass        --bypass --detect --headers --help --menu --origin --rate --selftest
+                     --status-tsv --variants --vendors
 
 ### Not built yet
 

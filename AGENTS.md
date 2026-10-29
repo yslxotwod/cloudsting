@@ -18,7 +18,9 @@ cs_findings_row "$MODULE_ID" "CATEGORY" "$target" "critical-my-check" "$detail" 
   their findings went to stdout and were discarded. If you add a module and
   `loot/findings.tsv` does not grow, the call never reached the core.
 
-A selftest must **never** write to the real ledger. Every selftest that calls a
+A selftest must **never** write to the real ledger — two modules shipped
+without this guard (`42_openapi`, `66_webhook_sig`) and quietly appended their
+own fixtures every time the suite ran. Every selftest that calls a
 findings-producing verb saves `CS_LOOT`, points it at `$CS_SCRATCH` for the
 duration, and restores it before `cs_selftest_done`:
 
@@ -30,6 +32,11 @@ mkdir -p "$CS_LOOT"
 CS_LOOT="$real_loot"
 cs_selftest_done
 ```
+
+A leak is invisible to a row-count check while the same row is already in the
+ledger: dedup swallows the repeat, so the count does not move. To find leaks,
+empty the ledger of local targets first, then run the modules and watch it
+grow.
 
 ### The schema
 

@@ -452,7 +452,7 @@ cs_http() {
 
     local -a hdrs=() cargs=()
     local body="" bfile="" ctype="" to="$CS_HTTP_TIMEOUT" follow=0 insecure=0
-    local ua="" out="" cookie="" token="" own_body=1
+    local ua="" out="" cookie="" token="" own_body=1 pathas=0
     while [[ $# -gt 0 ]]; do
         case "$1" in
             -H) hdrs+=("${2-}"); shift 2 ;;
@@ -466,6 +466,7 @@ cs_http() {
             -o) out="${2-}";      shift 2 ;;
             -L) follow=1;         shift ;;
             -k) insecure=1;       shift ;;
+            -P) pathas=1;         shift ;;
             *)  shift ;;
         esac
     done
@@ -502,6 +503,10 @@ cs_http() {
     fi
     (( follow ))   && cargs+=(-L)
     (( insecure )) && cargs+=(-k)
+    # Without this curl collapses "/./admin" to "/admin" before it leaves the
+    # box, so a WAF-bypass test would measure curl's normaliser instead of the
+    # target's — and report a bypass that never happened.
+    (( pathas ))   && cargs+=(--path-as-is)
     [[ -n "$ua" ]]     && cargs+=(-A "$ua")
     [[ -n "$cookie" ]] && cargs+=(-b "$cookie")
     [[ -n "$token" ]]  && cargs+=(-H "Authorization: Bearer $token")
@@ -533,6 +538,13 @@ cs_http() {
         "$(printf '%s' "$CS_HTTP_ERROR" | tr -d '\037\n\r')"
 
 
+    # A vendor fingerprint reads headers this record does not carry. Asking
+    # for the dump by path keeps the eight-field record stable and hands back
+    # the bytes the server actually sent, not a reconstruction.
+    if [[ -n "${CS_HTTP_HDR_OUT:-}" && -s "$hf" ]]; then
+        mkdir -p "$(dirname "$CS_HTTP_HDR_OUT")" 2>/dev/null || true
+        cat "$hf" > "$CS_HTTP_HDR_OUT" 2>/dev/null || true
+    fi
     rm -f "$hf" "$errf" 2>/dev/null || true
     (( own_body )) && [[ "$code" == "000" ]] && rm -f "$bf" 2>/dev/null
     return 0

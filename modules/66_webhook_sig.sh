@@ -586,6 +586,11 @@ HELP
 # ── Selftest ─────────────────────────────────────────────────────
 wh_selftest() {
     cs_selftest_reset
+    # the probe verbs write findings; without this the suite appends its own
+    # dead-host probe to the real ledger on every run
+    local real_loot="$CS_LOOT"
+    CS_LOOT="$CS_SCRATCH"
+    mkdir -p "$CS_LOOT"
 
     local ns; ns="$(wh_schemes | wc -l | tr -d ' ')"
     chk sch-many    "$( (( ns >= 12 )) && echo many || echo few )" "many"
@@ -660,6 +665,7 @@ wh_selftest() {
     chk sch-rows      "$(wh_cmd_schemes | grep -c '^SCHEME')" "$ns"
     chk vec-rows      "$(wh_cmd_vectors | grep -c '^VECTOR')" "$nv"
 
+    CS_LOOT="$real_loot"
     cs_selftest_done
 }
 
