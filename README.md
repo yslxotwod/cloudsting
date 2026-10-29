@@ -380,6 +380,7 @@ standalone, carries its own `--selftest`, and writes TSV.
 | `07_policy_audit` | Wildcard actions, wildcard resources, missing conditions | 12 checks |
 | `10_snapshot` | Shared snapshots, public images, and what a stolen disk gives up | 44 checks |
 | `11_event_trigger` | Forged events against triggers that check the name, not the source | 51 checks |
+| `13_cicd` | Workflow static analysis, OIDC trust and the deploy branch | 48 checks |
 | `23_persistence` | Footholds that outlive the session, per provider | 23 checks |
 
 #### Compute
@@ -453,6 +454,8 @@ Each module's own `--help` is the authority; this is the map.
 03_bucket_enum       --domain --enum --menu --perm --selftest --status-tsv
 04_pivot             --assume --enumerate --escalate --help --list --menu --probe
                      --providers --selftest --status-tsv --techniques --trust
+13_cicd              --branch --forge --help --list --menu --oidc --pipelines --probe
+                     --runner --secrets --selftest --status-tsv --techniques
 11_event_trigger     --forge --help --inject --list --menu --payload --probe
                      --rules --selftest --sources --status-tsv --techniques --trust
 10_snapshot          --data --help --images --list --menu --probe --public

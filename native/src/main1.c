@@ -134,6 +134,9 @@ static const ModuleDefinition module_fallback[] = {
     { "11_event_trigger", "Event Trigger", "COMPUTE",
       "emblem-synchronizing-symbolic",
       "Inject a forged event and see what the handler does" },
+    { "13_cicd",         "CI/CD Supply Chain", "COMPUTE",
+      "text-x-script-symbolic",
+      "Workflow files, OIDC trust and the branch the deploy watches" },
     { "12_serverless",    "Serverless",      "COMPUTE",
       "system-run-symbolic",
       "Functions across AWS, GCP and Azure: list, env, code" },
@@ -3092,6 +3095,19 @@ static const PageSpec event_pages[] = {
       "#GAPS|--techniques:Trust gaps worth testing|--list:Verb list" },
 };
 
+/* ---- 13_cicd ---- */
+static const PageSpec cicd_pages[] = {
+    { "Overview", "dialog-information-symbolic", NULL },
+    { "Workflows", "text-x-script-symbolic",
+      "#STATIC — NO CREDENTIALS NEEDED|~--secrets:Scan a workflow file or directory"
+      "|#WHAT IT FOUND|--techniques:The doors and what a yes gives you" },
+    { "Trust", "security-high-symbolic",
+      "#THE CI TO CLOUD BRIDGE|~--oidc:Grade an OIDC trust policy"
+      "|#THE FORGE|~--branch:Is the deploy branch protected|~--pipelines:Repos and workflows" },
+    { "Reference", "view-list-symbolic",
+      "#PROOF|~--forge:Print a minimal workflow|--probe:Provider state|--list:Verb list" },
+};
+
 /* ---- Master spec table ---- */
 static const ModuleSpec module_specs[] = {
     { "00_deps", S("00_deps.sh"),
@@ -3131,6 +3147,9 @@ static const ModuleSpec module_specs[] = {
     { "11_event_trigger", S("11_event_trigger.sh"),
       "Event Trigger Abuse", "Make a legitimate event fire a function on your terms.",
       event_pages, G_N_ELEMENTS(event_pages) },
+    { "13_cicd", S("13_cicd.sh"),
+      "CI/CD Supply Chain", "Walk from a commit to the runner to the credential.",
+      cicd_pages, G_N_ELEMENTS(cicd_pages) },
     { "12_serverless", S("12_serverless.sh"),
       "Serverless", "List functions, read their environment, download their code.",
       serverless_pages, G_N_ELEMENTS(serverless_pages) },

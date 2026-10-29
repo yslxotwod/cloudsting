@@ -11,6 +11,7 @@
 10	STORAGE	3	Snapshot & Image Theft	Share a snapshot with yourself and read the disk
 11	COMPUTE	3	Event Trigger Abuse	Make a legitimate event fire a function on your terms
 12	COMPUTE	3	Serverless Functions	List, dump env, find invoke URLs, pull the code
+13	COMPUTE	4	CI/CD Supply Chain	Walk from a commit to the runner to the credential
 14	STORAGE	4	Container Registry Reconnaissance	Registries, repositories, tags, and image layers worth pulling apart
 15	COMPUTE	4	Container Escape Detection	Capabilities, mounts, cgroups and host namespace reachability
 16	COMPUTE	4	Kubernetes	Clusters, RBAC, who can do what, and the secrets behind it
