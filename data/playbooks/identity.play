@@ -26,3 +26,11 @@ module 17 --paths
 # nothing here prints a secret: the report is the shape, the length and a
 # fingerprint, which is enough to prove access and useless to a reader
 module 17 --classify
+
+# the mail path is not credentials, but it is the trust an identity rests on:
+# a relay that forwards for strangers needs no account either
+module 19 --relay "$TARGET"
+
+# and an exposed mailbox list is an identity list, which is what the rest of
+# this playbook then tries against
+module 19 --enum "$TARGET"

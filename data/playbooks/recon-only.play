@@ -8,3 +8,11 @@ module 18 --takeover "$TARGET"
 module 18 --zones
 module 18 --vpcs
 stop-on-fail
+
+# the mail path is recon that needs no credentials at all: what the domain
+# publishes decides whether a forged From: reaches an inbox
+module 19 --spoof "$TARGET"
+
+# the fuller posture is the same lookups plus the MX fingerprint, the DKIM
+# selectors and MTA-STS — worth reading before you consider sending anything
+module 19 --domain "$TARGET"

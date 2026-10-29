@@ -17,6 +17,7 @@
 16	COMPUTE	4	Kubernetes	Clusters, RBAC, who can do what, and the secrets behind it
 17	CREDS	6	Secret Stores	Once metadata is closed the credentials still live in a managed store: what the current identity can list, and which stores answer without a token
 18	NETWORK	3	Cloud Network & Takeover	DNS, dangling records and claimable subdomains, subnets, routes and firewall exposure
+19	ATTRITION	5	Mail Authentication	The domain anyone can send as — SPF, DMARC and the relay that forwards for strangers
 21	STORAGE	3	Database Exposure	Managed database instances and which of them answer from the world
 22	ATTRITION	3	Audit Evasion	What the provider records, and where the trail has holes
 23	IDENTITY	9	Persistence	Footholds that outlive the session, per provider

@@ -404,6 +404,7 @@ standalone, carries its own `--selftest`, and writes TSV.
 | Module | Description | Selftest |
 |---|---|---|
 | `22_audit_evasion` | What the provider records, and where the trail has holes | 27 checks |
+| `19_mail_auth` | SPF, DMARC and DKIM measured against what a receiver does with them, plus the open relay and the mailbox list | 84 checks |
 
 #### Web API
 
@@ -563,6 +564,8 @@ Each module's own `--help` is the authority; this is the map.
                      --status-tsv --variants --vendors
 17_secret_stores     --classify --enumerate --help --list --menu --paths --providers
                      --read --selftest --state --status-tsv --surface
+19_mail_auth         --domain --enum --help --menu --providers --relay --selectors
+                     --selftest --spoof --status-tsv
 
 ### Not built yet
 
@@ -572,7 +575,7 @@ network, attrition and the first eleven of the web-API family.
 
 | Range | Planned |
 |---|---|
-| 24–34 | Cross-account trust, snapshot theft, event/webhook abuse, metadata DNS rebinding, CI/CD attack, WAF bypass, edge exploitation, vault extraction, provider API fuzzing, mail abuse, console hijack |
+| 24–34 | Cross-account trust, snapshot theft, event/webhook abuse, metadata DNS rebinding, CI/CD attack, edge exploitation, provider API fuzzing, console hijack |
 | 35–45 | Fleet sync, cryptojacking, backup ransom, cloud AD, canary hunting, auth bypass, HPP, injection, webhook abuse, gRPC, WebSocket |
 | 51–61 | Request smuggling, response leaks, CORS, pagination abuse, deserialization, webhook signatures, session and refresh abuse, GraphQL DoS, binary fuzzing, spec diffing, business logic |
 | 63–84 | Race conditions, API DNS rebinding, LLM endpoints, key rotation, mobile backends, replay, gateway recon, IAM-derived API keys, event injection, log injection, token forging |

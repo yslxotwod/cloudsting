@@ -281,6 +281,9 @@ static const ModuleDefinition module_fallback[] = {
     { "17_secret_stores", "Secret Stores", "CREDS",
       "dialog-password-symbolic",
       "What the current identity can list, and which stores answer without a token" },
+    { "19_mail_auth", "Mail Authentication", "ATTRITION",
+      "mail-send-symbolic",
+      "The domain anyone can send as, and the relay that forwards for strangers" },
 };
 
 /* Category → icon. A registry row carries no icon column: the category
@@ -3154,6 +3157,25 @@ static const PageSpec secretstore_pages[] = {
       "17_secret_stores.sh" },
 };
 
+static const PageSpec mail_pages[] = {
+    { "Overview", "dialog-information-symbolic", NULL },
+    { "Posture", "mail-send-symbolic",
+      "#READ THE DOMAIN|~--domain:SPF, DMARC, DKIM, MX, MTA-STS and the verdict"
+      "|~--spoof:The verdict alone, and why it is that verdict",
+      "19_mail_auth.sh" },
+    { "Relay", "network-transmit-receive-symbolic",
+      "#CAN IT FORWARD FOR A STRANGER|~--relay:Two external recipients, one verdict",
+      "19_mail_auth.sh" },
+    { "Mailboxes", "mail-unread-symbolic",
+      "#WHO EXISTS@|~--enum:Exist, rejected or greylisted, with a catch-all control",
+      "19_mail_auth.sh" },
+    { "Reference", "view-list-symbolic",
+      "#TABLES|--providers:Hosted mail and the MX that names it"
+      "|--selectors:The DKIM names probed, and why they are a guess"
+      "|--status-tsv:Module status",
+      "19_mail_auth.sh" },
+};
+
 /* ---- Master spec table ---- */
 static const ModuleSpec module_specs[] = {
     { "00_deps", S("00_deps.sh"),
@@ -3345,6 +3367,9 @@ static const ModuleSpec module_specs[] = {
     { "17_secret_stores", S("17_secret_stores.sh"),
       "Secret Stores", "Once metadata is closed the credentials still live in a managed store: what this identity can list, and which stores answer without a token.",
       secretstore_pages, G_N_ELEMENTS(secretstore_pages) },
+    { "19_mail_auth", S("19_mail_auth.sh"),
+      "Mail Authentication", "The domain anyone can send as — SPF, DMARC and DKIM measured against what a receiver does with them, plus the relay and the mailboxes.",
+      mail_pages, G_N_ELEMENTS(mail_pages) },
 };
 
 
