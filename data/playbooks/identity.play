@@ -3,6 +3,8 @@
 # it belongs to, then the escalation paths out of it.
 module 01 --status-tsv
 module 06 --whoami
+module 04 --probe
+module 04 --techniques
 module 05 --map
 module 07 --list
 module 22 --posture

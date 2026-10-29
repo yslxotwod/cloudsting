@@ -3,6 +3,7 @@ id	slug	title	category	mission	verbs	selftest	phase
 01	01_cred_validate	Credential Validator	CREDS	Identify a credential from its shape, validate it offline, probe it live — cloud keys and 23 telco vendor auth oracles	--defaults --detect --detect-vendor --help --list-formats --login --menu --selftest --status-tsv --sweep --validate --vendors	19	1
 02	02_inventory	Cloud Asset Inventory	SURFACE	Enumerate what the account actually holds across providers	--help --menu --regions --run --selftest --status-tsv	11	1
 03	03_bucket_enum	Cloud Bucket Enumeration	STORAGE	Storage buckets, their permissions, and their public exposure	--domain --enum --menu --perm --selftest --status-tsv	11	1
+04	04_pivot	Cross-Account Pivot	IDENTITY	Assume the role and report what came back, not what the policy promised	--assume --enumerate --escalate --help --list --menu --probe --providers --selftest --status-tsv --techniques --trust	39	2
 05	05_iam_privesc	IAM Privilege-Escalation Mapper	IDENTITY	Known escalation paths out of the current principal	--check --explain --help --list --map --menu --selftest --status-tsv	11	2
 06	06_role_chains	IAM Role Trust & Chain Analyzer	IDENTITY	Role trust policies and the chains they permit	--chain --help --list --menu --scan --selftest --status-tsv --whoami	7	2
 07	07_policy_audit	IAM Policy Auditor	IDENTITY	Wildcard actions, wildcard resources, missing conditions	--audit --check --explain --help --list --menu --selftest --status-tsv	12	2

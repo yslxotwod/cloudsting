@@ -374,6 +374,7 @@ standalone, carries its own `--selftest`, and writes TSV.
 
 | Module | Description | Selftest |
 |---|---|---|
+| `04_pivot` | Assume a foreign role and measure what the credential returns | 39 checks |
 | `05_iam_privesc` | Known escalation paths out of the current principal | 11 checks |
 | `06_role_chains` | Role trust policies and the chains they permit | 7 checks |
 | `07_policy_audit` | Wildcard actions, wildcard resources, missing conditions | 12 checks |
@@ -448,6 +449,8 @@ Each module's own `--help` is the authority; this is the map.
                      --selftest --status-tsv --sweep --validate --vendors
 02_inventory         --help --menu --regions --run --selftest --status-tsv
 03_bucket_enum       --domain --enum --menu --perm --selftest --status-tsv
+04_pivot             --assume --enumerate --escalate --help --list --menu --probe
+                     --providers --selftest --status-tsv --techniques --trust
 05_iam_privesc       --check --explain --help --list --map --menu --selftest --status-tsv
 06_role_chains       --chain --help --list --menu --scan --selftest --status-tsv --whoami
 07_policy_audit      --audit --check --explain --help --list --menu --selftest --status-tsv

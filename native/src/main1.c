@@ -110,6 +110,9 @@ static const ModuleDefinition module_fallback[] = {
     { "03_bucket_enum",   "Bucket Enum",     "STORAGE",
       "folder-remote-symbolic",
       "Discover buckets and probe permissions" },
+    { "04_pivot",         "Cross-Acct Pivot", "IDENTITY",
+      "system-users-symbolic",
+      "Assume a foreign role and measure what it returns" },
     { "05_iam_privesc",   "IAM PrivEsc",     "IDENTITY",
       "security-high-symbolic",
       "Map IAM privilege escalation paths" },
@@ -2124,6 +2127,20 @@ static const PageSpec takeover_pages[] = {
       "|#REFERENCE|--list:Fingerprint table" },
 };
 
+/* ---- 04_pivot ---- */
+static const PageSpec pivot_pages[] = {
+    { "Overview", "dialog-information-symbolic", NULL },
+    { "Trust", "security-high-symbolic",
+      "#THE DOCUMENT|~--trust:Grade a trust policy or role ARN"
+      "|--providers:Providers and mechanisms"
+      "|#WHAT A READER CAN CONCLUDE|--techniques:Gaps a delivered credential reveals" },
+    { "Assume", "system-users-symbolic",
+      "#ASSUME, THEN MEASURE|~--assume:Assume a role and probe what came back|~--enumerate:Enumerate inside the pivoted account"
+      "|#ESCALATION|~--escalate:Does the delivered session write" },
+    { "Reference", "view-list-symbolic",
+      "#VERBS|--list:Verb list" },
+};
+
 /* ---- 05_iam_privesc ---- */
 static const PageSpec privesc_pages[] = {
     { "Overview", "dialog-information-symbolic", NULL },
@@ -3057,6 +3074,9 @@ static const ModuleSpec module_specs[] = {
     { "03_bucket_enum", S("03_bucket_enum.sh"),
       "Bucket Enum", "Find, probe and rate bucket exposure.",
       bucket_pages, G_N_ELEMENTS(bucket_pages) },
+    { "04_pivot", S("04_pivot.sh"),
+      "Cross-Account Pivot", "Assume the role and report what came back, not what the policy promised.",
+      pivot_pages, G_N_ELEMENTS(pivot_pages) },
     { "05_iam_privesc", S("05_iam_privesc.sh"),
       "IAM PrivEsc", "Map IAM privilege escalation paths.",
       privesc_pages, G_N_ELEMENTS(privesc_pages) },

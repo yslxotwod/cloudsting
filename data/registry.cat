@@ -2,6 +2,7 @@
 01	CREDS	1	Credential Validator	Identify a credential from its shape, validate it offline, probe it live — cloud keys and 23 telco vendor auth oracles
 02	SURFACE	1	Cloud Asset Inventory	Enumerate what the account actually holds across providers
 03	STORAGE	1	Cloud Bucket Enumeration	Storage buckets, their permissions, and their public exposure
+04	IDENTITY	2	Cross-Account Pivot	Assume the role and report what came back, not what the policy promised
 05	IDENTITY	2	IAM Privilege-Escalation Mapper	Known escalation paths out of the current principal
 06	IDENTITY	2	IAM Role Trust & Chain Analyzer	Role trust policies and the chains they permit
 07	IDENTITY	2	IAM Policy Auditor	Wildcard actions, wildcard resources, missing conditions
