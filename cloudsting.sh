@@ -659,7 +659,7 @@ cs_cmd_findings() {
                 [[ "$key" == [[:space:]]* ]] && continue
                 # a module header banner like "cloudsting module 15 — …"
                 [[ "$key" == cloudsting* ]] && continue
-                cs_findings_row "$slug" "$cat" "$target" "$key" "$val" >> "$f"
+                cs_findings_row "$slug" "$cat" "$target" "$key" "$val" > /dev/null
                 n=$((n + 1))
             done < "$tsv"
 

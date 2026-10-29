@@ -509,11 +509,23 @@ cs_findings_row() {
     sev="$(cs_findings_severity "$mod" "$key" "$val" "$sev")"
 
     local ts; ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+    local row
+    row="$(printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s' \
         "$ts" "$mod" "$cat" "$sev" "$tgt" \
         "$(printf '%s' "$check" | tr -d '\t\n\r')" \
         "$(printf '%s' "$detail" | tr -d '\t\n\r')" \
-        "${CS_EVIDENCE:-}"
+        "${CS_EVIDENCE:-}")"
+
+    # A finding is a row in the ledger, not a line on the terminal. This used
+    # to PRINT the row and leave the append to every call site, and 41 modules
+    # never did it — so everything they found was shown once and thrown away,
+    # and the cross-module correlation the store exists for never worked.
+    # Append here, where it cannot be forgotten.
+    local f; f="$(cs_findings_ensure)"
+    printf '%s\n' "$row" >> "$f"
+
+    # keep printing it, because callers legitimately capture or display it
+    printf '%s\n' "$row"
 }
 
 mkdir -p "$CS_SCRATCH" 2>/dev/null || true

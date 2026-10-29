@@ -242,8 +242,7 @@ pv_severity() {
 # rather than passed as an extra column.
 pv_findings() {
     local target="$1" sev="$2" check="$3" detail="$4"
-    local f; f="$(cs_findings_ensure)"
-    cs_findings_row "$MODULE_ID" "IDENTITY" "$target" "${sev,,}-${check}" "$detail" >> "$f"
+    cs_findings_row "$MODULE_ID" "IDENTITY" "$target" "${sev,,}-${check}" "$detail" > /dev/null
 }
 
 # ── verbs ────────────────────────────────────────────────────────
