@@ -134,7 +134,7 @@ kh_scan_text() {
             local shown="${hit:0:120}"
             cs_row KEY "$provider" "$sev" "$(kh_family "$provider")" "$src" "$shown"
             printf '%s\t%s\t%s\t%s\t%s\n' "$provider" "$sev" "$src" "$(cs_esc "$hit")" "$note" >> "$KEYS_FILE"
-            cs_findings_row "$MODULE_ID" "SECRETS" "$src" "$sev" "$provider" \
+            cs_findings_row "$MODULE_ID" "CREDS" "$src" "$sev" "$provider" \
                 "$(kh_family "$provider") key found in $src"
         done <<< "$hits"
     done < <(kh_patterns)
@@ -320,7 +320,7 @@ kh_cmd_headers() {
             x-api-key|api-key|x-auth-token|authorization|x-client-id)
                 cs_row HEADER_SECRET "$name" "${value:0:120}"
                 printf '%s\t%s\n' "$name" "$(cs_esc "$value")" >> "$HDR_FILE"
-                cs_findings_row "$MODULE_ID" "SECRETS" "$url" "HIGH" "secret-header:$name" \
+                cs_findings_row "$MODULE_ID" "CREDS" "$url" "HIGH" "secret-header:$name" \
                     "response leaks an auth header"
                 ;;
         esac

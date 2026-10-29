@@ -522,7 +522,7 @@ te_cmd_apis() {
             # the interesting names are the ones that are not meant to be public
             case "$h" in
                 admin|internal|intranet|jenkins|gitlab|grafana|kibana|prometheus|db|mysql|postgres|redis|mongo|mssql|backup|vpn|vpn2|sftp|ftp)
-                    cs_findings_row "$MODULE_ID" "RECON" "$fqdn" "MEDIUM" "sensitive-subdomain:$h" \
+                    cs_findings_row "$MODULE_ID" "SURFACE" "$fqdn" "MEDIUM" "sensitive-subdomain:$h" \
                         "resolves publicly to $addr"
                     ;;
             esac

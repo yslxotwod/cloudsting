@@ -294,7 +294,7 @@ k8_cmd_secrets() {
     cs_row COUNT "${count:-0}"
     if [[ "${count:-0}" -gt 0 ]]; then
         cs_row ARTIFACT "$SECRET_FILE"
-        cs_findings_row "$MODULE_ID" "CREDENTIALS" "cluster" "HIGH" "k8s-secrets-readable" \
+        cs_findings_row "$MODULE_ID" "CREDS" "cluster" "HIGH" "k8s-secrets-readable" \
             "${count} secrets are readable from the current identity"
     fi
     return 0
@@ -322,7 +322,7 @@ k8_cmd_decode() {
         printf '%s\t%s\n' "$key" "$value" >> "$safe"
         cs_row KEY "$key" "$(cs_redact "$value")"
         if printf '%s' "$value" | grep -qE 'AKIA[0-9A-Z]{16}|ASIA[0-9A-Z]{16}|-----BEGIN|sk_live_|gh[pousr]_[A-Za-z0-9]{20,}|xox[baprs]-'; then
-            cs_findings_row "$MODULE_ID" "CREDENTIALS" "$ns/$name" "CRITICAL" "k8s-secret-credential" \
+            cs_findings_row "$MODULE_ID" "CREDS" "$ns/$name" "CRITICAL" "k8s-secret-credential" \
                 "secret $ns/$name carries a usable credential in key $key"
         fi
     done
@@ -347,7 +347,7 @@ k8_cmd_sa_tokens() {
         [[ -z "$ns" ]] && continue
         n=$((n + 1))
         cs_row SA_TOKEN "$ns" "$name" "$sa" "$has"
-        [[ "$has" == "true" ]] && cs_findings_row "$MODULE_ID" "CREDENTIALS" "$ns/$name" "CRITICAL" "k8s-sa-token" \
+        [[ "$has" == "true" ]] && cs_findings_row "$MODULE_ID" "CREDS" "$ns/$name" "CRITICAL" "k8s-sa-token" \
             "service account token for $sa is readable"
     done
     return 0
@@ -392,7 +392,7 @@ k8_cmd_extract() {
             printf '%s/%s\t%s\t%s\n' "$nspace" "$name" "$key" "$value" >> "$safe"
             cs_row VALUE "$nspace/$name" "$key" "$(cs_redact "$value")"
             if printf '%s' "$value" | grep -qE 'AKIA[0-9A-Z]{16}|ASIA[0-9A-Z]{16}|-----BEGIN|sk_live_|gh[pousr]_|xox[baprs]-|postgres://|mysql://|mongodb://'; then
-                cs_findings_row "$MODULE_ID" "CREDENTIALS" "$nspace/$name" "CRITICAL" "k8s-secret-credential" \
+                cs_findings_row "$MODULE_ID" "CREDS" "$nspace/$name" "CRITICAL" "k8s-secret-credential" \
                     "decoded secret carries a credential in key $key"
             fi
         done
@@ -403,7 +403,7 @@ k8_cmd_extract() {
     cs_row COUNT "$found"
     cs_row DECODED "$decoded"
     cs_row ARTIFACT "$safe"
-    [[ "$found" -gt 0 ]] && cs_findings_row "$MODULE_ID" "CREDENTIALS" "cluster" "HIGH" \
+    [[ "$found" -gt 0 ]] && cs_findings_row "$MODULE_ID" "CREDS" "cluster" "HIGH" \
         "k8s-secrets-readable" "$found secrets readable, $decoded decoded"
     return 0
 }

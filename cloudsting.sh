@@ -646,7 +646,7 @@ cs_cmd_findings() {
             f="$(cs_findings_ensure)"
 
             local slug cat; slug="$(cs_slug "$row")"; cat="$(cs_cat "$row")"
-            local n=0
+            local n=0 before; before="$(awk 'NR>1' "$f" | wc -l)"
             # Read the file row by row. A line is a finding when it holds a
             # tab; prose, banners, indented help and blank lines are not.
             while IFS= read -r line; do
@@ -663,7 +663,11 @@ cs_cmd_findings() {
                 n=$((n + 1))
             done < "$tsv"
 
-            printf 'INGESTED\t%s\nROWS\t%s\nFILE\t%s\n' "$tsv" "$n" "$f"
+            # The ledger dedupes, so "lines read" is not "rows stored":
+            # re-ingesting the same artifact must not look like new findings.
+            local added; added=$(( $(awk 'NR>1' "$f" | wc -l) - before ))
+            printf 'INGESTED\t%s\nROWS\t%s\nNEW\t%s\nDUPLICATE\t%s\nFILE\t%s\n' \
+                "$tsv" "$n" "$added" "$((n - added))" "$f"
             ;;
         list|"")
             [[ -r "$f" ]] || { cs_note "no findings yet: $f"; return 0; }
@@ -689,10 +693,39 @@ cs_cmd_findings() {
             [[ -r "$f" ]] || { cs_note "no findings yet: $f"; return 0; }
             awk -F'\t' -v p="$pat" 'NR==1{print;next} tolower($0) ~ tolower(p)' "$f"
             ;;
+        normalise|normalize)
+            # Rows written before the category vocabulary was enforced carry
+            # retired spellings. Rewrite them through the same table the write
+            # path uses, so history groups with the present.
+            [[ -r "$f" ]] || { cs_note "no findings yet: $f"; return 0; }
+            local tmp old changed ncat
+            tmp="$(mktemp "$CS_TMP_DIR/findings.XXXXXX")" || return 1
+            old="$(mktemp "$CS_TMP_DIR/findings.XXXXXX")" || return 1
+            cp "$f" "$old" || { rm -f "$tmp" "$old"; return 1; }
+            {
+                head -1 "$f"
+                awk -F'\t' 'NR>1 && $1!="ts" {
+                        printf "%s\037%s\037%s\037%s\037%s\037%s\037%s\037%s\037%s\n", \
+                            $1, $2, $3, $4, $5, $6, $7, $8, $9 }' "$f" \
+                | while IFS=$'\037' read -r a b c d e g h i j; do
+                    ncat="$(cs_findings_category "$b" "$c")"
+                    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+                        "$a" "$b" "$ncat" "$d" "$e" "$g" "$h" "$i" "$j"
+                done
+            } > "$tmp" || { rm -f "$tmp" "$old"; return 1; }
+            # count by comparing the two files, not from inside a subshell
+            changed="$(paste <(cut -f2,3 "$old") <(cut -f2,3 "$tmp") 2>/dev/null \
+                | awk -F'\t' '$2!=$4' | wc -l)"
+            mv "$tmp" "$f" && rm -f "$old"
+            printf 'NORMALISED\t%s\nFILE\t%s\n' "${changed:-0}" "$f"
+            ;;
         stats)
             [[ -r "$f" ]] || { cs_note "no findings yet: $f"; return 0; }
             printf 'SEVERITY\tROWS\n'
             awk -F'\t' 'NR>1 {c[$4]++} END {for (s in c) printf "%s\t%s\n", s, c[s]}' "$f" \
+                | sort -t$'\t' -k2,2nr
+            printf 'CATEGORY\tROWS\n'
+            awk -F'\t' 'NR>1 {c[$3]++} END {for (k in c) printf "%s\t%s\n", k, c[k]}' "$f" \
                 | sort -t$'\t' -k2,2nr
             printf 'MODULE\tROWS\n'
             awk -F'\t' 'NR>1 {c[$2]++} END {for (m in c) printf "%s\t%s\n", m, c[m]}' "$f" \

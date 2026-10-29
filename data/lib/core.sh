@@ -389,6 +389,156 @@ cs_fingerprint() {
     fi
 }
 
+# ── http ────────────────────────────────────────────────────────────
+# One request wrapper, because 33 modules had grown their own and the same
+# two bugs kept appearing in them:
+#
+#   * curl does NOT expand \t or \036 inside --write-out. A format string
+#     with a tab emits a literal backslash-t, so `IFS=$'\t' read` never
+#     splits and the whole meta string lands in the status code. Two modules
+#     were comparing garbage for weeks while looking healthy.
+#   * Content-Type carries a space ("application/json; charset=utf-8"), so it
+#     cannot ride along a space-separated format either.
+#
+# So: the body goes to a file, the headers go to a file, and --write-out
+# emits exactly three always-numeric, space-separated fields. Content-Type
+# and Location are read back out of the header dump — from what the server
+# actually sent, not from a format string.
+CS_HTTP_TIMEOUT="${CS_HTTP_TIMEOUT:-10}"
+CS_HTTP_ERROR=""
+
+# cs_http_header <header-dump> <name> — the LAST value wins, so a redirect
+# chain reports the final response rather than the 302 that started it.
+cs_http_header() {
+    local f="${1:-}" want="${2:-}"
+    [[ -r "$f" ]] || return 0
+    awk -v w="${want,,}" '
+        {
+            line = $0; sub(/\r$/, "", line)
+            i = index(line, ":")
+            if (i > 1) {
+                k = substr(line, 1, i - 1); gsub(/^[ \t]+|[ \t]+$/, "", k)
+                if (tolower(k) == w) {
+                    v = substr(line, i + 1); gsub(/^[ \t]+|[ \t]+$/, "", v)
+                    out = v
+                }
+            }
+        }
+        END { print out }' "$f" 2>/dev/null
+}
+
+# cs_http <method> <url> [flags]
+#   -H 'Header: value'   extra request header (repeatable)
+#   -d <body>            request body as a string
+#   -f <file>            request body from a file (bytes preserved exactly)
+#   -c <ctype>           Content-Type for -d/-f
+#   -m <seconds>         total timeout          (default $CS_HTTP_TIMEOUT)
+#   -L                   follow redirects
+#   -k                   skip TLS verification
+#   -A <ua>              User-Agent
+#   -b <cookie>          Cookie header
+#   -t <token>           Authorization: Bearer <token>
+#   -o <path>            keep the response body here (default: a temp file)
+#
+# Prints one U+001F separated record — split it with cs_split, never `read`:
+#   code  secs  bytes  sha1-12  content-type  location  body-path  error
+# code is 000 and bytes 0 when nothing answered; the last field then carries
+# curl's own complaint. It is a FIELD rather than a global because the normal
+# way to call this is `$(cs_http ...)`, and a command substitution runs in a
+# subshell — a global set in there never reaches the caller.
+cs_http() {
+    local method="${1:-GET}" url="${2:-}"
+    if [[ $# -ge 2 ]]; then shift 2; else shift $#; fi
+
+    local -a hdrs=() cargs=()
+    local body="" bfile="" ctype="" to="$CS_HTTP_TIMEOUT" follow=0 insecure=0
+    local ua="" out="" cookie="" token="" own_body=1
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            -H) hdrs+=("${2-}"); shift 2 ;;
+            -d) body="${2-}";     shift 2 ;;
+            -f) bfile="${2-}";    shift 2 ;;
+            -c) ctype="${2-}";    shift 2 ;;
+            -m) to="${2-}";       shift 2 ;;
+            -A) ua="${2-}";       shift 2 ;;
+            -b) cookie="${2-}";   shift 2 ;;
+            -t) token="${2-}";    shift 2 ;;
+            -o) out="${2-}";      shift 2 ;;
+            -L) follow=1;         shift ;;
+            -k) insecure=1;       shift ;;
+            *)  shift ;;
+        esac
+    done
+
+    if [[ -z "$url" ]]; then
+        CS_HTTP_ERROR="no-url"
+        printf '000\x1f0\x1f0\x1f\x1f\x1f\x1f\x1f%s\n' "no-url"
+        return 2
+    fi
+    if ! cs_have curl; then
+        CS_HTTP_ERROR="tool-missing: curl"
+        printf '000\x1f0\x1f0\x1f\x1f\x1f\x1f\x1f%s\n' "tool-missing: curl"
+        return 3
+    fi
+
+    local dir="${CS_SCRATCH:-${TMPDIR:-/tmp}}"
+    mkdir -p "$dir" 2>/dev/null || true
+    local bf hf errf meta rc code bytes secs
+    if [[ -n "$out" ]]; then
+        bf="$out"; own_body=0
+        mkdir -p "$(dirname "$out")" 2>/dev/null || true
+    else
+        bf="$(mktemp "$dir/http-body.XXXXXX" 2>/dev/null)"
+    fi
+    hf="$(mktemp "$dir/http-hdr.XXXXXX" 2>/dev/null)"
+    errf="$(mktemp "$dir/http-err.XXXXXX" 2>/dev/null)"
+
+    cargs=(-sS --max-time "$to" -D "$hf" -o "$bf"
+           -w '%{http_code} %{size_download} %{time_total}')
+    if [[ "${method^^}" == "HEAD" ]]; then
+        cargs+=(--head)          # -X HEAD makes curl wait for a body that never comes
+    else
+        cargs+=(-X "$method")
+    fi
+    (( follow ))   && cargs+=(-L)
+    (( insecure )) && cargs+=(-k)
+    [[ -n "$ua" ]]     && cargs+=(-A "$ua")
+    [[ -n "$cookie" ]] && cargs+=(-b "$cookie")
+    [[ -n "$token" ]]  && cargs+=(-H "Authorization: Bearer $token")
+    [[ -n "$ctype" ]]  && cargs+=(-H "Content-Type: $ctype")
+    [[ -n "$body" ]]   && cargs+=(--data-binary "$body")
+    [[ -n "$bfile" ]]  && cargs+=(--data-binary "@$bfile")
+    local h; for h in "${hdrs[@]}"; do [[ -n "$h" ]] && cargs+=(-H "$h"); done
+    cargs+=(--url "$url")
+
+    meta="$(curl "${cargs[@]}" 2>"$errf")"; rc=$?
+    CS_HTTP_ERROR="$(tr -d '\r' < "$errf" 2>/dev/null | head -3 | tr '\n' ' ')"
+    [[ "$rc" -eq 0 ]] || CS_HTTP_ERROR="${CS_HTTP_ERROR:-curl exit $rc}"
+
+    # Three numeric fields, always on one line, so a tab never has to survive.
+    read -r code bytes secs <<<"${meta:-000 0 0}"
+    code="${code:-000}"
+    [[ "$code" =~ ^[0-9]{3}$ ]] || code="000"
+    bytes="${bytes:-0}"
+    [[ "$bytes" =~ ^[0-9]+$ ]] || bytes=0
+    secs="${secs:-0}"
+
+    local ctype_out loc hash
+    ctype_out="$(cs_http_header "$hf" 'content-type')"
+    loc="$(cs_http_header "$hf" 'location')"
+    hash="$(sha1sum "$bf" 2>/dev/null | cut -c1-12)"
+
+    printf '%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\n' \
+        "$code" "$secs" "$bytes" "$hash" "$ctype_out" "$loc" "$bf" \
+        "$(printf '%s' "$CS_HTTP_ERROR" | tr -d '\037\n\r')"
+
+
+    rm -f "$hf" "$errf" 2>/dev/null || true
+    (( own_body )) && [[ "$code" == "000" ]] && rm -f "$bf" 2>/dev/null
+    return 0
+}
+
+
 # ── selftest ────────────────────────────────────────────────────────
 # chk <name> <got> <want> — the helper every module was rewriting. Sets
 # CS_PASS/CS_FAIL; cs_selftest_done prints the RESULT line and returns 0/1.
@@ -443,13 +593,73 @@ cs_findings_file() { printf '%s/findings.tsv' "$CS_LOOT"; }
 cs_findings_map()  { printf "%s/data/findings.map" "${CLOUDSTING_ROOT:-${CS_ROOT:-}}"; }
 
 # The schema this launcher writes. A reader checks the header before parsing.
-CS_FINDINGS_HEADER=$'ts\tmodule\tcategory\tseverity\ttarget\tcheck\tdetail\tevidence'
+# `run` is the last column so every earlier index keeps its meaning.
+CS_FINDINGS_HEADER=$'ts\tmodule\tcategory\tseverity\ttarget\tcheck\tdetail\tevidence\trun'
+
+# The one category vocabulary. A finding's category is what an analyst filters
+# on, so a module spelling it differently is not a cosmetic problem — it splits
+# one engagement across two buckets in `findings stats`.
+CS_FINDINGS_CATEGORIES="SETUP CREDS IDENTITY ATTRITION DNS STORAGE COMPUTE NETWORK SURFACE WEBAPI TOOLING"
+
+# cs_findings_category <module> <as-passed>
+# Known words pass through, retired aliases are translated, and anything else
+# is answered by asking the registry what category this module is registered
+# under — so a module cannot invent a bucket by passing a new word.
+cs_findings_category() {
+    local mod="${1:-}" raw="${2:-}"
+    local c
+    c="$(printf '%s' "$raw" | tr -d '\t\n\r' | tr '[:lower:]' '[:upper:]')"
+    case "$c" in
+        SETUP|CREDS|IDENTITY|ATTRITION|DNS|STORAGE|COMPUTE|NETWORK|SURFACE|WEBAPI|TOOLING)
+            printf '%s' "$c"; return 0 ;;
+        # retired spellings this tree actually contains
+        CREDENTIALS|CREDENTIAL|SECRETS|SECRET|KEYS|AUTH|PASSWORDS)
+            printf 'CREDS'; return 0 ;;
+        RECON|DISCOVERY|ENUM|ENUMERATION|PASSIVE|ASSETS)
+            printf 'SURFACE'; return 0 ;;
+        API|WEB|HTTP|REST|GRAPHQL|SOAP|ENDPOINT|ENDPOINTS)
+            printf 'WEBAPI'; return 0 ;;
+        AUDIT|LOGGING|DETECTION|EVASION|FORENSICS)
+            printf 'ATTRITION'; return 0 ;;
+        DATA|OBJECT|DATABASE|DB|FILES|BUCKETS)
+            printf 'STORAGE'; return 0 ;;
+        NET|VPC|FIREWALL|ROUTE|ROUTES|SUBNET)
+            printf 'NETWORK'; return 0 ;;
+        CONTAINER|K8S|KUBERNETES|HOST|VM|SERVERLESS|FUNCTIONS)
+            printf 'COMPUTE'; return 0 ;;
+        IAM|ROLE|POLICY|TRUST|PRIVILEGE)
+            printf 'IDENTITY'; return 0 ;;
+    esac
+    # Not a word we know. The module's registered category is the honest
+    # answer, and it keeps the fallback from guessing.
+    local reg="${CLOUDSTING_ROOT:-${CS_ROOT:-}}/data/registry.tsv"
+    if [[ -n "$mod" && -r "$reg" ]]; then
+        local got
+        got="$(awk -F'\t' -v m="$mod" '$2==m { print $4; exit }' "$reg" 2>/dev/null)"
+        if [[ -n "$got" ]]; then printf '%s' "$got"; return 0; fi
+    fi
+    printf '%s' "${c:-SURFACE}"
+}
 
 cs_findings_ensure() {
     local f; f="$(cs_findings_file)"
+    mkdir -p "$(dirname "$f")" 2>/dev/null || true
     if [[ ! -s "$f" ]]; then
-        mkdir -p "$(dirname "$f")" 2>/dev/null || true
         printf '%s\n' "$CS_FINDINGS_HEADER" > "$f"
+    else
+        # A ledger written before the `run` column has eight fields. Upgrade it
+        # in place so every reader can index the same field either way.
+        local head; head="$(head -1 "$f")"
+        if [[ "$head" != "$CS_FINDINGS_HEADER" ]]; then
+            local tmp
+            tmp="$(mktemp "${CS_TMP_DIR:-${TMPDIR:-/tmp}}/findings.XXXXXX" 2>/dev/null)" || {
+                printf '%s' "$f"; return 0; }
+            {
+                printf '%s\n' "$CS_FINDINGS_HEADER"
+                awk 'NR>1 && $1!="ts" { n=gsub(/\t/,"\t"); while (n < 8) { $0 = $0 "\t"; n++ } print }' "$f"
+            } > "$tmp" 2>/dev/null && mv "$tmp" "$f"
+            rm -f "$tmp" 2>/dev/null || true
+        fi
     fi
     printf '%s' "$f"
 }
@@ -507,14 +717,16 @@ cs_findings_row() {
             [[ "$sev" == "info" ]] && sev="clean" ;;
     esac
     sev="$(cs_findings_severity "$mod" "$key" "$val" "$sev")"
+    cat="$(cs_findings_category "$mod" "$cat")"
 
     local ts; ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    local chk det
+    chk="$(printf '%s' "$check" | tr -d '\t\n\r')"
+    det="$(printf '%s' "$detail" | tr -d '\t\n\r')"
     local row
-    row="$(printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s' \
-        "$ts" "$mod" "$cat" "$sev" "$tgt" \
-        "$(printf '%s' "$check" | tr -d '\t\n\r')" \
-        "$(printf '%s' "$detail" | tr -d '\t\n\r')" \
-        "${CS_EVIDENCE:-}")"
+    row="$(printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s' \
+        "$ts" "$mod" "$cat" "$sev" "$tgt" "$chk" "$det" \
+        "${CS_EVIDENCE:-}" "${CS_RUN_ID:-}")"
 
     # A finding is a row in the ledger, not a line on the terminal. This used
     # to PRINT the row and leave the append to every call site, and 41 modules
@@ -522,6 +734,19 @@ cs_findings_row() {
     # and the cross-module correlation the store exists for never worked.
     # Append here, where it cannot be forgotten.
     local f; f="$(cs_findings_ensure)"
+
+    # The same observation recorded twice is noise, not a second finding: two
+    # scans of one target used to leave two identical rows and made the ledger
+    # unreadable. Skip an exact repeat; CS_FINDINGS_NO_DEDUP=1 forces it in.
+    if [[ -z "${CS_FINDINGS_NO_DEDUP:-}" ]]; then
+        if awk -F'\t' -v m="$mod" -v c="$cat" -v s="$sev" -v t="$tgt" -v k="$chk" -v d="$det" '
+                NR>1 && $2==m && $3==c && $4==s && $5==t && $6==k && $7==d { found=1; exit }
+                END { exit !found }' "$f" 2>/dev/null; then
+            printf '%s\n' "$row"
+            return 0
+        fi
+    fi
+
     printf '%s\n' "$row" >> "$f"
 
     # keep printing it, because callers legitimately capture or display it

@@ -206,7 +206,7 @@ sl_cmd_env() {
             # A key-shaped value is a finding no matter which key it hides in.
             if printf '%s' "$v" | grep -qE 'AKIA[0-9A-Z]{16}|ASIA[0-9A-Z]{16}|sk_live_|sk-[A-Za-z0-9]{20,}|AIza[0-9A-Za-z_-]{35}|gh[pousr]_[A-Za-z0-9]{20,}|xox[baprs]-'; then
                 cs_row SECRET "$p" "$k" "$(cs_redact "$v")"
-                cs_findings_row "$MODULE_ID" "CREDENTIALS" "$func" "CRITICAL" "function-env-secret" \
+                cs_findings_row "$MODULE_ID" "CREDS" "$func" "CRITICAL" "function-env-secret" \
                     "$p function $func exposes a credential in environment variable $k"
             else
                 cs_row ENV "$p" "$k" "$(cs_redact "$v")"

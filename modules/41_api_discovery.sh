@@ -360,7 +360,7 @@ ad_cmd_discover() {
             error-leak)     sev="HIGH" ;;
             *)              continue ;;
         esac
-        cs_findings_row "$MODULE_ID" "API" "$base" "$sev" "$v:$p" "${rd:-no redirect}"
+        cs_findings_row "$MODULE_ID" "WEBAPI" "$base" "$sev" "$v:$p" "${rd:-no redirect}"
     done < "$FOUND_FILE" 2>/dev/null || true
 
     return 0
@@ -406,7 +406,7 @@ ad_cmd_spec() {
                 title="$(jq -r '.info.title // "-"' "$f" 2>/dev/null)"
                 cs_row SPEC "$p" "$ver" "$paths" "$title"
                 cp "$f" "$SPEC_FILE" 2>/dev/null || true
-                cs_findings_row "$MODULE_ID" "API" "$base" "HIGH" "openapi-spec:$p" \
+                cs_findings_row "$MODULE_ID" "WEBAPI" "$base" "HIGH" "openapi-spec:$p" \
                     "spec v$ver exposes $paths paths"
             fi
         fi
@@ -437,10 +437,10 @@ ad_cmd_methods() {
         cs_row METHOD "$m" "${c:-0}" "$(ad_len_class "${l:-0}")" "$(ad_ct_class "${t:-}")"
         # TRACE answering with 200 is a reflection bug worth naming
         if [[ "$m" == "TRACE" && "$c" == "200" ]]; then
-            cs_findings_row "$MODULE_ID" "API" "$base" "HIGH" "trace-enabled:$path" "TRACE returns 200"
+            cs_findings_row "$MODULE_ID" "WEBAPI" "$base" "HIGH" "trace-enabled:$path" "TRACE returns 200"
         fi
         if [[ "$m" == "PUT" || "$m" == "DELETE" ]] && [[ "$c" == "200" || "$c" == "204" ]]; then
-            cs_findings_row "$MODULE_ID" "API" "$base" "HIGH" "write-method-open:$path" \
+            cs_findings_row "$MODULE_ID" "WEBAPI" "$base" "HIGH" "write-method-open:$path" \
                 "$m allowed without auth"
         fi
         rm -f "$f"

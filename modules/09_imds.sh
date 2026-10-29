@@ -152,7 +152,7 @@ im_extract_creds() {
             n=$((n + 1))
             printf '%s\t%s\t%s\t%s\n' "$provider" "access-key" "$ak" "$source" >> "$CREDS_FILE"
             cs_row CRED "$provider" "access-key" "$(cs_fingerprint "$ak")" "$source"
-            cs_findings_row "$MODULE_ID" "CREDENTIALS" "$source" "CRITICAL" "$provider-access-key" \
+            cs_findings_row "$MODULE_ID" "CREDS" "$source" "CRITICAL" "$provider-access-key" \
                 "metadata returns a usable $provider access key"
         fi
         if [[ -n "$sk" ]]; then
@@ -171,7 +171,7 @@ im_extract_creds() {
         n=$((n + 1))
         printf '%s\t%s\t%s\t%s\n' "$provider" "key-id" "$hit" "$source" >> "$CREDS_FILE"
         cs_row CRED "$provider" "key-id" "$(cs_fingerprint "$hit")" "$source"
-        cs_findings_row "$MODULE_ID" "CREDENTIALS" "$source" "CRITICAL" "$provider-key-in-metadata" \
+        cs_findings_row "$MODULE_ID" "CREDS" "$source" "CRITICAL" "$provider-key-in-metadata" \
             "an access key id is readable from metadata"
     done
     return 0
@@ -372,7 +372,7 @@ im_cmd_userdata() {
         n=$((n + 1))
         cs_row KEY "aws" "$(cs_fingerprint "$hit")"
         printf 'aws\tkey-id\t%s\t%s\n' "$hit" "$url" >> "$CREDS_FILE"
-        cs_findings_row "$MODULE_ID" "CREDENTIALS" "$url" "CRITICAL" "userdata-aws-key" \
+        cs_findings_row "$MODULE_ID" "CREDS" "$url" "CRITICAL" "userdata-aws-key" \
             "user-data embeds an AWS access key"
     done
     if grep -qiE 'password|passwd|secret' "$body" 2>/dev/null; then
@@ -380,7 +380,7 @@ im_cmd_userdata() {
         local line
         line="$(grep -iE 'password|passwd|secret' "$body" 2>/dev/null | head -1 | cut -c1-140)"
         cs_row PASSWORD_LINE "$(cs_redact "$line")"
-        cs_findings_row "$MODULE_ID" "CREDENTIALS" "$url" "HIGH" "userdata-password" \
+        cs_findings_row "$MODULE_ID" "CREDS" "$url" "HIGH" "userdata-password" \
             "user-data contains a plaintext credential"
     fi
     cs_row SUMMARY "$n"
