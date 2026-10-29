@@ -131,6 +131,9 @@ static const ModuleDefinition module_fallback[] = {
     { "10_snapshot",     "Snapshot Theft", "STORAGE",
       "drive-harddisk-symbolic",
       "Shared snapshots and the credentials inside them" },
+    { "11_event_trigger", "Event Trigger", "COMPUTE",
+      "emblem-synchronizing-symbolic",
+      "Inject a forged event and see what the handler does" },
     { "12_serverless",    "Serverless",      "COMPUTE",
       "system-run-symbolic",
       "Functions across AWS, GCP and Azure: list, env, code" },
@@ -3076,6 +3079,19 @@ static const PageSpec snapshot_pages[] = {
       "#VERBS|--list:Verb list" },
 };
 
+/* ---- 11_event_trigger ---- */
+static const PageSpec event_pages[] = {
+    { "Overview", "dialog-information-symbolic", NULL },
+    { "Wiring", "emblem-synchronizing-symbolic",
+      "#WHO CAN TRIGGER IT|--sources:Event source classes|--probe:Provider state"
+      "|#WHAT IS WIRED|--rules:Every trigger and its target" },
+    { "Inject", "network-transmit-symbolic",
+      "#BUILD AN EVENT|~--forge:Print an event body"
+      "|#SEND IT|~--inject:Post to a receiver|~--trust:Grade the source policy" },
+    { "Reference", "view-list-symbolic",
+      "#GAPS|--techniques:Trust gaps worth testing|--list:Verb list" },
+};
+
 /* ---- Master spec table ---- */
 static const ModuleSpec module_specs[] = {
     { "00_deps", S("00_deps.sh"),
@@ -3112,6 +3128,9 @@ static const ModuleSpec module_specs[] = {
     { "10_snapshot", S("10_snapshot.sh"),
       "Snapshot & Image Theft", "The disk that outlived the instance, and who else can restore it.",
       snapshot_pages, G_N_ELEMENTS(snapshot_pages) },
+    { "11_event_trigger", S("11_event_trigger.sh"),
+      "Event Trigger Abuse", "Make a legitimate event fire a function on your terms.",
+      event_pages, G_N_ELEMENTS(event_pages) },
     { "12_serverless", S("12_serverless.sh"),
       "Serverless", "List functions, read their environment, download their code.",
       serverless_pages, G_N_ELEMENTS(serverless_pages) },

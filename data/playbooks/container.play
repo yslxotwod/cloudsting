@@ -3,4 +3,5 @@ module 15 --all
 module 16 --all
 module 16 --secrets
 module 14 --scan
+module 11 --rules
 continue

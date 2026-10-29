@@ -10,6 +10,7 @@ id	slug	title	category	mission	verbs	selftest	phase
 08	08_secrets_scan	Secrets Scanner	CREDS	Key and token patterns in files, directories and streams	--detect --help --list --menu --scan --selftest --status-tsv	12	1
 09	09_imds	Instance Metadata	COMPUTE	SSRF to IMDSv1, IMDSv2 bypass, user-data, and the credentials in them	--all --check --creds --endpoints --exec --help --keys --list --menu --probe --selftest --status-tsv --techniques --token --userdata	22	3
 10	10_snapshot	Snapshot & Image Theft	STORAGE	Share a snapshot with yourself and read the disk	--data --help --images --list --menu --probe --public --selftest --share --snapshots --status-tsv --techniques	44	3
+11	11_event_trigger	Event Trigger Abuse	COMPUTE	Make a legitimate event fire a function on your terms	--forge --help --inject --list --menu --payload --probe --rules --selftest --sources --status-tsv --techniques --trust	51	3
 12	12_serverless	Serverless Functions	COMPUTE	List, dump env, find invoke URLs, pull the code	--all --download --download-all --dump --env --help --invoke --list --menu --selftest --status-tsv --urls	16	3
 14	14_registry_recon	Container Registry Reconnaissance	STORAGE	Registries, repositories, tags, and image layers worth pulling apart	--dhl --help --images --list --menu --pull --scan --selftest --status-tsv --tags	9	4
 15	15_container_escape	Container Escape Detection	COMPUTE	Capabilities, mounts, cgroups and host namespace reachability	--all --cap --cgroup --check --help --host --list --menu --mounts --proc --selftest --status-tsv	9	4
