@@ -3,4 +3,6 @@ module 03 --enum
 module 03 --domain "$TARGET"
 module 18 --takeover "$TARGET"
 module 18 --zones
+module 10 --snapshots
+module 10 --public
 continue

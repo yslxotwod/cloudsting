@@ -8,6 +8,7 @@
 07	IDENTITY	2	IAM Policy Auditor	Wildcard actions, wildcard resources, missing conditions
 08	CREDS	1	Secrets Scanner	Key and token patterns in files, directories and streams
 09	COMPUTE	3	Instance Metadata	SSRF to IMDSv1, IMDSv2 bypass, user-data, and the credentials in them
+10	STORAGE	3	Snapshot & Image Theft	Share a snapshot with yourself and read the disk
 12	COMPUTE	3	Serverless Functions	List, dump env, find invoke URLs, pull the code
 14	STORAGE	4	Container Registry Reconnaissance	Registries, repositories, tags, and image layers worth pulling apart
 15	COMPUTE	4	Container Escape Detection	Capabilities, mounts, cgroups and host namespace reachability

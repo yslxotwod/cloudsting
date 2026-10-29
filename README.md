@@ -378,6 +378,7 @@ standalone, carries its own `--selftest`, and writes TSV.
 | `05_iam_privesc` | Known escalation paths out of the current principal | 11 checks |
 | `06_role_chains` | Role trust policies and the chains they permit | 7 checks |
 | `07_policy_audit` | Wildcard actions, wildcard resources, missing conditions | 12 checks |
+| `10_snapshot` | Shared snapshots, public images, and what a stolen disk gives up | 44 checks |
 | `23_persistence` | Footholds that outlive the session, per provider | 23 checks |
 
 #### Compute
@@ -451,6 +452,8 @@ Each module's own `--help` is the authority; this is the map.
 03_bucket_enum       --domain --enum --menu --perm --selftest --status-tsv
 04_pivot             --assume --enumerate --escalate --help --list --menu --probe
                      --providers --selftest --status-tsv --techniques --trust
+10_snapshot          --data --help --images --list --menu --probe --public
+                     --selftest --share --snapshots --status-tsv --techniques
 05_iam_privesc       --check --explain --help --list --map --menu --selftest --status-tsv
 06_role_chains       --chain --help --list --menu --scan --selftest --status-tsv --whoami
 07_policy_audit      --audit --check --explain --help --list --menu --selftest --status-tsv

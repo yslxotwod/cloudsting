@@ -128,6 +128,9 @@ static const ModuleDefinition module_fallback[] = {
     { "09_imds",          "Instance Metadata", "COMPUTE",
       "network-transmit-receive-symbolic",
       "SSRF to IMDSv2 to user-data to credentials" },
+    { "10_snapshot",     "Snapshot Theft", "STORAGE",
+      "drive-harddisk-symbolic",
+      "Shared snapshots and the credentials inside them" },
     { "12_serverless",    "Serverless",      "COMPUTE",
       "system-run-symbolic",
       "Functions across AWS, GCP and Azure: list, env, code" },
@@ -3060,6 +3063,19 @@ static const PageSpec authbypass_pages[] = {
       "47_auth_bypass.sh" },
 };
 
+/* ---- 10_snapshot ---- */
+static const PageSpec snapshot_pages[] = {
+    { "Overview", "dialog-information-symbolic", NULL },
+    { "Sharing", "folder-remote-symbolic",
+      "#WHAT A STRANGER CAN RESTORE|--public:Account-wide sweep|--images:Images we own"
+      "|#ONE AT A TIME|~--share:One snapshot in full" },
+    { "Content", "drive-harddisk-symbolic",
+      "#WHAT THE DISK GIVES UP|~--data:Inspect a mounted image"
+      "|#REFERENCE|--techniques:Paths and sharing surfaces" },
+    { "Reference", "view-list-symbolic",
+      "#VERBS|--list:Verb list" },
+};
+
 /* ---- Master spec table ---- */
 static const ModuleSpec module_specs[] = {
     { "00_deps", S("00_deps.sh"),
@@ -3092,6 +3108,10 @@ static const ModuleSpec module_specs[] = {
     { "09_imds", S("09_imds.sh"),
       "Instance Metadata", "SSRF into IMDS, IMDSv2, user-data and the credentials in them.",
       imds_pages, G_N_ELEMENTS(imds_pages) },
+
+    { "10_snapshot", S("10_snapshot.sh"),
+      "Snapshot & Image Theft", "The disk that outlived the instance, and who else can restore it.",
+      snapshot_pages, G_N_ELEMENTS(snapshot_pages) },
     { "12_serverless", S("12_serverless.sh"),
       "Serverless", "List functions, read their environment, download their code.",
       serverless_pages, G_N_ELEMENTS(serverless_pages) },
