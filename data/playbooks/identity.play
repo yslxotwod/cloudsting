@@ -10,3 +10,19 @@ module 07 --list
 module 22 --posture
 module 23 --footholds
 continue
+
+# once instance metadata is closed the credentials are not gone, they moved
+# into a store the workload reads at boot: ask what this identity can list
+# before assuming the account is clean
+module 17 --state
+module 17 --enumerate
+
+# and both HTTP-native stores are routinely reachable without a token, which
+# makes the mount table, the policy names and every application property
+# readable; a config server also echoes its own git uri, credentials included
+module 17 --surface $TARGET
+module 17 --paths
+
+# nothing here prints a secret: the report is the shape, the length and a
+# fingerprint, which is enough to prove access and useless to a reader
+module 17 --classify

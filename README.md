@@ -345,6 +345,7 @@ standalone, carries its own `--selftest`, and writes TSV.
 |---|---|---|
 | `01_cred_validate` | Identify a credential from its shape, validate it offline, probe it live — cloud keys and 23 telco vendor auth oracles | 19 checks |
 | `08_secrets_scan` | Key and token patterns in files, directories and streams | 12 checks |
+| `17_secret_stores` | The managed stores the workload reads at boot — what this identity can list, and which stores answer without a token | 83 checks |
 
 #### Surface
 
@@ -560,6 +561,8 @@ Each module's own `--help` is the authority; this is the map.
                      --selftest --status-tsv
 29_waf_bypass        --bypass --detect --headers --help --menu --origin --rate --selftest
                      --status-tsv --variants --vendors
+17_secret_stores     --classify --enumerate --help --list --menu --paths --providers
+                     --read --selftest --state --status-tsv --surface
 
 ### Not built yet
 

@@ -278,6 +278,9 @@ static const ModuleDefinition module_fallback[] = {
     { "29_waf_bypass", "Cloud WAF Bypass", "WEBAPI",
       "network-server-symbolic",
       "The edge and the origin disagree about the same path" },
+    { "17_secret_stores", "Secret Stores", "CREDS",
+      "dialog-password-symbolic",
+      "What the current identity can list, and which stores answer without a token" },
 };
 
 /* Category → icon. A registry row carries no icon column: the category
@@ -3131,6 +3134,26 @@ static const PageSpec waf_pages[] = {
       "29_waf_bypass.sh" },
 };
 
+/* 17_secret_stores — once metadata is closed, the credentials are still here. */
+static const PageSpec secretstore_pages[] = {
+    { "Overview", "dialog-information-symbolic", NULL },
+    { "Surface", "network-wired-symbolic",
+      "#AN UNAUTHENTICATED STORE|~--surface:Probe Vault, Config Server and Conjur"
+      "|--paths:The path catalogue and its healthy answer",
+      "17_secret_stores.sh" },
+    { "Credentials", "dialog-password-symbolic",
+      "#WHAT THIS IDENTITY CAN REACH|--state:Provider, cli and credential, three states"
+      "|~--enumerate:List the store with the credential here"
+      "|~--read:Fetch one secret as shape, length and fingerprint",
+      "17_secret_stores.sh" },
+    { "Classify", "applications-engineering-symbolic",
+      "#NAME A VALUE|~--classify:Shape, length and fingerprint, never the value",
+      "17_secret_stores.sh" },
+    { "Reference", "view-list-symbolic",
+      "#TABLES|--providers:The store table|--status-tsv:Module status",
+      "17_secret_stores.sh" },
+};
+
 /* ---- Master spec table ---- */
 static const ModuleSpec module_specs[] = {
     { "00_deps", S("00_deps.sh"),
@@ -3319,6 +3342,9 @@ static const ModuleSpec module_specs[] = {
     { "29_waf_bypass", S("29_waf_bypass.sh"),
       "Cloud WAF Bypass", "The edge and the origin disagree about the same path — normalisation forms measured against a measured block signature.",
       waf_pages, G_N_ELEMENTS(waf_pages) },
+    { "17_secret_stores", S("17_secret_stores.sh"),
+      "Secret Stores", "Once metadata is closed the credentials still live in a managed store: what this identity can list, and which stores answer without a token.",
+      secretstore_pages, G_N_ELEMENTS(secretstore_pages) },
 };
 
 
